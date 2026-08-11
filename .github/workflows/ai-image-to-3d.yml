@@ -63,12 +63,13 @@ jobs:
 
       - name: Install Blender for mesh inspection
         run: |
-          sudo apt-get install -y blender xvfb libglu1-mesa
+          sudo apt-get install -y blender xvfb libglu1-mesa python3-numpy
           blender --version
+          /usr/bin/python3 -c "import numpy; print('System NumPy', numpy.__version__)"
 
       - name: Normalize clean and render AI mesh
         run: |
-          xvfb-run -a blender --background --python scripts/postprocess_ai_mesh.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python scripts/postprocess_ai_mesh.py
 
       - name: Verify AI experiment outputs
         run: |
