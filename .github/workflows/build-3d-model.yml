@@ -17,17 +17,18 @@ jobs:
       - name: Install Blender and virtual display
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy
           blender --version
+          python3 -c "import numpy; print('numpy', numpy.__version__)"
 
       - name: Build model in Blender headless
         run: |
           mkdir -p output
-          xvfb-run -a blender --background --python scripts/build_model.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python scripts/build_model.py
 
       - name: Validate model
         run: |
-          xvfb-run -a blender --background output/model.blend --python scripts/validate_model.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python scripts/validate_model.py
           cat output/model_report.txt
 
       - name: Verify required files
