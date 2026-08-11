@@ -1,260 +1,216 @@
-import bpy
-import bmesh
-import math
-import os
+import bpy, bmesh, math, os
 from mathutils import Vector
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) if '__file__' in globals() else os.getcwd()
-OUT = os.path.join(ROOT, 'output')
-os.makedirs(OUT, exist_ok=True)
+ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__),'..')) if '__file__' in globals() else os.getcwd()
+OUT=os.path.join(ROOT,'output'); os.makedirs(OUT,exist_ok=True)
 
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete(use_global=False)
-scene = bpy.context.scene
-scene.unit_settings.system = 'METRIC'
-scene.unit_settings.length_unit = 'METERS'
-scene.unit_settings.scale_length = 1.0
-scene.render.resolution_x = 768
-scene.render.resolution_y = 768
-scene.render.resolution_percentage = 100
-scene.render.image_settings.file_format = 'PNG'
-scene.render.film_transparent = False
-if bpy.app.version >= (4, 2, 0):
-    scene.render.engine = 'BLENDER_EEVEE_NEXT'
-else:
-    scene.render.engine = 'BLENDER_EEVEE'
+# ---------- reset ----------
+bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
+scene=bpy.context.scene
+scene.unit_settings.system='METRIC'; scene.unit_settings.length_unit='METERS'; scene.unit_settings.scale_length=1.0
+scene.render.resolution_x=768; scene.render.resolution_y=768; scene.render.resolution_percentage=100
+scene.render.image_settings.file_format='PNG'; scene.render.film_transparent=False
+scene.render.engine='BLENDER_EEVEE' if bpy.app.version<(4,2,0) else 'BLENDER_EEVEE_NEXT'
+try:
+    scene.view_settings.view_transform='Standard'
+    scene.view_settings.look='Medium High Contrast'
+except Exception: pass
 
-def make_mat(name, color, roughness=0.65, metallic=0.0, alpha=1.0):
-    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
-    m.use_nodes = True
-    bsdf = m.node_tree.nodes.get('Principled BSDF')
-    bsdf.inputs['Base Color'].default_value = (*color, 1.0)
-    bsdf.inputs['Roughness'].default_value = roughness
-    bsdf.inputs['Metallic'].default_value = metallic
-    if 'Alpha' in bsdf.inputs:
-        bsdf.inputs['Alpha'].default_value = alpha
-    m.diffuse_color = (*color, alpha)
-    return m
-
-MAT = {
-    'Wall_Main': make_mat('Wall_Main', (0.90, 0.875, 0.79), 0.82),
-    'Trim_White': make_mat('Trim_White', (0.97, 0.965, 0.93), 0.68),
-    'Roof_Blue': make_mat('Roof_Blue', (0.045, 0.19, 0.36), 0.62),
-    'Roof_Blue_Light': make_mat('Roof_Blue_Light', (0.07, 0.25, 0.47), 0.62),
-    'Wood': make_mat('Wood', (0.42, 0.20, 0.085), 0.7),
-    'Wood_Light': make_mat('Wood_Light', (0.62, 0.31, 0.12), 0.7),
-    'Glass': make_mat('Glass', (0.16, 0.34, 0.42), 0.2, 0.0, 0.75),
-    'Brick': make_mat('Brick', (0.64, 0.34, 0.14), 0.82),
-    'Brick_Light': make_mat('Brick_Light', (0.77, 0.49, 0.24), 0.82),
-    'Stone': make_mat('Stone', (0.58, 0.48, 0.39), 0.84),
-    'Path': make_mat('Path', (0.69, 0.61, 0.51), 0.88),
-    'Grass': make_mat('Grass', (0.28, 0.52, 0.075), 0.9),
-    'Shrub': make_mat('Shrub', (0.22, 0.47, 0.055), 0.9),
-    'Shrub_Light': make_mat('Shrub_Light', (0.34, 0.60, 0.075), 0.9),
-    'Tree_Dark': make_mat('Tree_Dark', (0.18, 0.38, 0.035), 0.9),
-    'Flower_Pink': make_mat('Flower_Pink', (0.88, 0.40, 0.55), 0.75),
-    'Flower_Yellow': make_mat('Flower_Yellow', (0.95, 0.70, 0.10), 0.75),
-    'Flower_White': make_mat('Flower_White', (0.92, 0.90, 0.82), 0.75),
-    'Dark': make_mat('Dark', (0.025, 0.025, 0.025), 0.8),
+# ---------- materials ----------
+def mat(name,c,rough=.65,metal=0):
+    m=bpy.data.materials.new(name); m.use_nodes=True
+    p=m.node_tree.nodes.get('Principled BSDF'); p.inputs['Base Color'].default_value=(*c,1); p.inputs['Roughness'].default_value=rough; p.inputs['Metallic'].default_value=metal
+    m.diffuse_color=(*c,1); return m
+M={
+'wall':mat('Wall_Main',(0.92,0.89,0.80),.82), 'trim':mat('Trim_White',(0.98,0.97,0.93),.72),
+'roof':mat('Roof_Blue',(0.035,0.16,0.34),.6), 'roof2':mat('Roof_Tile',(0.055,0.23,0.49),.58),
+'wood':mat('Wood',(0.42,0.20,0.07),.7), 'wood2':mat('Wood_Light',(0.62,0.31,0.10),.7),
+'glass':mat('Glass',(0.08,0.20,0.26),.22), 'brick':mat('Brick',(0.70,0.39,0.15),.8), 'brick2':mat('Brick_Light',(0.83,0.58,0.30),.8),
+'stone':mat('Stone',(0.52,0.42,0.34),.86), 'path':mat('Path',(0.73,0.65,0.55),.9),
+'grass':mat('Grass',(0.30,0.58,0.07),.9), 'green':mat('Shrub',(0.20,0.46,0.03),.9), 'green2':mat('Shrub_Light',(0.36,0.66,0.08),.9),
+'green3':mat('Tree_Dark',(0.13,0.34,0.02),.9), 'pink':mat('Flower_Pink',(0.92,0.35,0.54),.7), 'yellow':mat('Flower_Yellow',(1.0,0.70,0.07),.7),
+'whiteflower':mat('Flower_White',(0.98,0.94,0.85),.7), 'dark':mat('Dark',(0.02,0.02,0.02),.85), 'bg':mat('Backdrop',(0.88,0.84,0.76),.95)
 }
 
-def assign(obj, material):
-    if obj.data and hasattr(obj.data, 'materials'):
-        obj.data.materials.clear(); obj.data.materials.append(material)
+def assign(o,m): o.data.materials.clear(); o.data.materials.append(m)
+def bevel(o,w=.02,seg=2):
+    if w<=0:return
+    md=o.modifiers.new('Bevel','BEVEL'); md.width=w; md.segments=seg; md.limit_method='ANGLE'; bpy.context.view_layer.objects.active=o; bpy.ops.object.modifier_apply(modifier=md.name)
+def box(n,loc,dims,m,bev=.015,rot=(0,0,0)):
+    bpy.ops.mesh.primitive_cube_add(size=1,location=loc,rotation=rot); o=bpy.context.object; o.name=n; o.dimensions=dims; bpy.ops.object.transform_apply(location=False,rotation=False,scale=True); assign(o,m); bevel(o,bev); return o
+def cyl(n,loc,r,d,m,v=18):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=v,radius=r,depth=d,location=loc); o=bpy.context.object; o.name=n; assign(o,m); return o
+def ico(n,loc,r,m,sub=2,scale=(1,1,1)):
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=sub,radius=r,location=loc); o=bpy.context.object; o.name=n; o.scale=scale; bpy.ops.object.transform_apply(location=False,rotation=False,scale=True); assign(o,m); return o
+def mesh(n,verts,faces,m):
+    me=bpy.data.meshes.new(n+'_Mesh'); me.from_pydata(verts,[],faces); me.validate(); me.update(); o=bpy.data.objects.new(n,me); bpy.context.collection.objects.link(o); assign(o,m); return o
 
-def apply_bevel(obj, width=0.025, segments=2):
-    if width <= 0: return
-    mod = obj.modifiers.new('Bevel', 'BEVEL'); mod.width = width; mod.segments = segments; mod.limit_method = 'ANGLE'
-    bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.modifier_apply(modifier=mod.name)
+def tri_prism(n,x0,x1,z0,z1,y0,y1,m):
+    xc=(x0+x1)/2; v=[(x0,y0,z0),(x1,y0,z0),(xc,y0,z1),(x0,y1,z0),(x1,y1,z0),(xc,y1,z1)]; f=[(0,1,2),(3,5,4),(0,3,4,1),(1,4,5,2),(2,5,3,0)]; return mesh(n,v,f,m)
 
-def box(name, loc, dims, material, bevel=0.018, rot=(0,0,0)):
-    bpy.ops.mesh.primitive_cube_add(size=1.0, location=loc, rotation=rot)
-    obj = bpy.context.object; obj.name = name; obj.dimensions = dims
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    assign(obj, material)
-    if bevel: apply_bevel(obj, bevel, 2)
-    return obj
+def slope_x(n,xe,xr,yc,yd,ze,zr,m,th=.11):
+    p0=Vector((xe,yc,ze)); p1=Vector((xr,yc,zr)); d=p1-p0; L=d.length; mid=(p0+p1)/2; a=math.atan2(d.z,d.x); return box(n,mid,(L,yd,th),m,.012,(0,-a,0))
+def slope_y(n,ye,yr,xc,xd,ze,zr,m,th=.11):
+    p0=Vector((xc,ye,ze)); p1=Vector((xc,yr,zr)); d=p1-p0; L=d.length; mid=(p0+p1)/2; a=math.atan2(d.z,d.y); return box(n,mid,(xd,L,th),m,.012,(a,0,0))
 
-def cylinder(name, loc, radius, depth, material, vertices=20, bevel=0.0):
-    bpy.ops.mesh.primitive_cylinder_add(vertices=vertices, radius=radius, depth=depth, location=loc)
-    obj=bpy.context.object; obj.name=name; assign(obj, material)
-    if bevel: apply_bevel(obj, bevel, 2)
-    return obj
-
-def ico(name, loc, radius, material, subdivisions=2, scale=(1,1,1)):
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=subdivisions, radius=radius, location=loc)
-    obj=bpy.context.object; obj.name=name; obj.scale=scale
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True); assign(obj, material); return obj
-
-def mesh_obj(name, verts, faces, material, bevel=0.0):
-    me=bpy.data.meshes.new(name+'_Mesh'); me.from_pydata(verts, [], faces); me.validate(verbose=False); me.update()
-    obj=bpy.data.objects.new(name, me); bpy.context.collection.objects.link(obj); assign(obj, material)
-    if bevel: apply_bevel(obj, bevel, 2)
-    return obj
-
-def tri_prism(name, x0, x1, z0, zpeak, y0, y1, material):
-    xc=(x0+x1)*0.5
-    verts=[(x0,y0,z0),(x1,y0,z0),(xc,y0,zpeak),(x0,y1,z0),(x1,y1,z0),(xc,y1,zpeak)]
-    faces=[(0,1,2),(3,5,4),(0,3,4,1),(1,4,5,2),(2,5,3,0)]
-    return mesh_obj(name,verts,faces,material)
-
-def sloped_box(name,p0,p1,width_y,thickness,material,y_center=0.0,bevel=0.012):
-    p0=Vector(p0); p1=Vector(p1); d=p1-p0; length=d.length; mid=(p0+p1)*0.5; theta=math.atan2(d.z,d.x)
-    return box(name,(mid.x,y_center,mid.z),(length,width_y,thickness),material,bevel,rot=(0,-theta,0))
-
-def roof_panel_x(name,x_eave,x_ridge,y_center,y_depth,z_eave,z_ridge,material):
-    return sloped_box(name,(x_eave,0,z_eave),(x_ridge,0,z_ridge),y_depth,0.12,material,y_center)
-
-def roof_shingles_x(prefix,x_eave,x_ridge,y_center,y_depth,z_eave,z_ridge,rows=7,cols=10):
-    p0=Vector((x_eave,y_center,z_eave)); p1=Vector((x_ridge,y_center,z_ridge)); d=p1-p0; L=d.length; u=d.normalized(); theta=math.atan2(d.z,d.x)
-    tile_len=L/rows*0.92; tile_w=y_depth/cols*0.88
+def tiles_x(pre,xe,xr,yc,yd,ze,zr,rows,cols):
+    p0=Vector((xe,yc,ze)); p1=Vector((xr,yc,zr)); d=p1-p0; L=d.length; u=d.normalized(); a=math.atan2(d.z,d.x); tl=L/rows*.90; tw=yd/cols*.88
     for r in range(rows):
-        s=(r+0.48)*L/rows
+        s=(r+.46)*L/rows
         for c in range(cols):
-            y=y_center-y_depth/2+(c+0.5)*y_depth/cols; base=p0+u*s
-            box(f'{prefix}_{r:02d}_{c:02d}',(base.x,y,base.z+0.055),(tile_len,tile_w,0.055),MAT['Roof_Blue_Light'],0.016,rot=(0,-theta,0))
-
-def roof_panel_y(name,y_eave,y_ridge,x_center,x_depth,z_eave,z_ridge,material):
-    p0=Vector((0,y_eave,z_eave)); p1=Vector((0,y_ridge,z_ridge)); d=p1-p0; length=d.length; mid=(p0+p1)/2; theta=math.atan2(d.z,d.y)
-    return box(name,(x_center,mid.y,mid.z),(x_depth,length,0.12),material,0.012,rot=(theta,0,0))
-
-def roof_shingles_y(prefix,y_eave,y_ridge,x_center,x_depth,z_eave,z_ridge,rows=5,cols=6):
-    p0=Vector((x_center,y_eave,z_eave)); p1=Vector((x_center,y_ridge,z_ridge)); d=p1-p0; L=d.length; u=d.normalized(); theta=math.atan2(d.z,d.y)
-    tile_len=L/rows*0.9; tile_w=x_depth/cols*0.86
+            y=yc-yd/2+(c+.5)*yd/cols; p=p0+u*s; box(f'{pre}_{r:02d}_{c:02d}',(p.x,y,p.z+.07),(tl,tw,.052),M['roof2'],.012,(0,-a,0))
+def tiles_y(pre,ye,yr,xc,xd,ze,zr,rows,cols):
+    p0=Vector((xc,ye,ze)); p1=Vector((xc,yr,zr)); d=p1-p0; L=d.length; u=d.normalized(); a=math.atan2(d.z,d.y); tl=L/rows*.90; tw=xd/cols*.88
     for r in range(rows):
-        s=(r+0.48)*L/rows
+        s=(r+.46)*L/rows
         for c in range(cols):
-            x=x_center-x_depth/2+(c+0.5)*x_depth/cols; base=p0+u*s
-            box(f'{prefix}_{r:02d}_{c:02d}',(x,base.y,base.z+0.055),(tile_w,tile_len,0.055),MAT['Roof_Blue_Light'],0.014,rot=(theta,0,0))
+            x=xc-xd/2+(c+.5)*xd/cols; p=p0+u*s; box(f'{pre}_{r:02d}_{c:02d}',(x,p.y,p.z+.07),(tw,tl,.052),M['roof2'],.012,(a,0,0))
 
-def window_front(prefix,x,y,z,w,h,shutters=None):
-    box(prefix+'_Frame',(x,y,z),(w,0.10,h),MAT['Trim_White'],0.016); box(prefix+'_Glass',(x,y-0.055,z),(w*0.78,0.035,h*0.78),MAT['Glass'],0.006)
-    box(prefix+'_MullionV',(x,y-0.075,z),(0.055,0.055,h*0.78),MAT['Trim_White'],0.006); box(prefix+'_MullionH',(x,y-0.075,z),(w*0.78,0.055,0.055),MAT['Trim_White'],0.006)
-    box(prefix+'_Sill',(x,y-0.11,z-h*0.52),(w*1.05,0.17,0.10),MAT['Trim_White'],0.012)
+def win_front(pre,x,y,z,w,h,shutters=None):
+    box(pre+'_Frame',(x,y,z),(w,.11,h),M['trim'],.012); box(pre+'_Glass',(x,y-.065,z),(w*.76,.035,h*.76),M['glass'],.004)
+    box(pre+'_V',(x,y-.085,z),(.05,.05,h*.76),M['trim'],.004); box(pre+'_H',(x,y-.085,z),(w*.76,.05,.05),M['trim'],.004); box(pre+'_Sill',(x,y-.11,z-h*.52),(w*1.08,.18,.09),M['trim'],.01)
     if shutters:
-        mat=MAT[shutters]; box(prefix+'_ShutterL',(x-w*0.62,y-0.08,z),(w*0.20,0.09,h*0.92),mat,0.012); box(prefix+'_ShutterR',(x+w*0.62,y-0.08,z),(w*0.20,0.09,h*0.92),mat,0.012)
+        mm=M[shutters]; box(pre+'_SL',(x-w*.63,y-.07,z),(w*.19,.08,h*.92),mm,.012); box(pre+'_SR',(x+w*.63,y-.07,z),(w*.19,.08,h*.92),mm,.012)
+def win_side(pre,x,y,z,w,h):
+    box(pre+'_Frame',(x,y,z),(.11,w,h),M['trim'],.012); box(pre+'_Glass',(x+.065,y,z),(.035,w*.76,h*.76),M['glass'],.004)
+    box(pre+'_V',(x+.085,y,z),(.05,.05,h*.76),M['trim'],.004); box(pre+'_H',(x+.085,y,z),(.05,w*.76,.05),M['trim'],.004); box(pre+'_Sill',(x+.11,y,z-h*.52),(.18,w*1.08,.09),M['trim'],.01)
 
-def window_side(prefix,x,y,z,w,h):
-    box(prefix+'_Frame',(x,y,z),(0.10,w,h),MAT['Trim_White'],0.016); box(prefix+'_Glass',(x+0.055,y,z),(0.035,w*0.78,h*0.78),MAT['Glass'],0.006)
-    box(prefix+'_MullionV',(x+0.075,y,z),(0.055,0.055,h*0.78),MAT['Trim_White'],0.006); box(prefix+'_MullionH',(x+0.075,y,z),(0.055,w*0.78,0.055),MAT['Trim_White'],0.006)
-    box(prefix+'_Sill',(x+0.11,y,z-h*0.52),(0.17,w*1.05,0.10),MAT['Trim_White'],0.012)
+def railing_x(pre,x0,x1,y,z=.85):
+    L=x1-x0; box(pre+'_Top',((x0+x1)/2,y,z+.27),(L,.07,.09),M['trim'],.008); box(pre+'_Bot',((x0+x1)/2,y,z-.15),(L,.06,.07),M['trim'],.008)
+    n=max(2,int(L/.20))
+    for i in range(n+1): box(f'{pre}_{i:02d}',(x0+i*L/n,y,z+.04),(.05,.05,.48),M['trim'],.006)
+def railing_y(pre,y0,y1,x,z=.85):
+    L=y1-y0; box(pre+'_Top',(x,(y0+y1)/2,z+.27),(.07,L,.09),M['trim'],.008); box(pre+'_Bot',(x,(y0+y1)/2,z-.15),(.06,L,.07),M['trim'],.008)
+    n=max(2,int(L/.20))
+    for i in range(n+1): box(f'{pre}_{i:02d}',(x,y0+i*L/n,z+.04),(.05,.05,.48),M['trim'],.006)
+def bush(pre,x,y,r=.27,light=False):
+    mm=M['green2'] if light else M['green']; ico(pre+'a',(x,y,.50),r,mm,2,(1,.85,.9)); ico(pre+'b',(x+r*.4,y+r*.12,.58),r*.7,mm,2); ico(pre+'c',(x-r*.38,y-r*.08,.56),r*.66,mm,2)
+def tree(pre,x,y,s=1):
+    cyl(pre+'_tr',(x,y,.85*s),.11*s,1.18*s,M['wood'],16)
+    cl=[(0,0,.52),(.28,.12,.36),(-.27,.10,.34),(.10,-.26,.34),(-.16,-.21,.31),(.04,.22,.33)]
+    for i,(ox,oy,r) in enumerate(cl): ico(f'{pre}_{i}',(x+ox*s,y+oy*s,1.60*s+(0.10*s if i==0 else 0)),r*s,M['green3'] if i%3==0 else M['green2'],2)
+def flower(pre,x,y,which='pink'):
+    bush(pre+'_b',x,y,.20,True)
+    for i,(ox,oy) in enumerate([(-.08,-.04),(.07,-.03),(-.02,.08),(.09,.08)]): ico(f'{pre}_{i}',(x+ox,y+oy,.67),.045,M[which],1)
 
-def porch_railing_x(prefix,x0,x1,y,z=0.86):
-    L=x1-x0; box(prefix+'_Top',((x0+x1)/2,y,z+0.35),(L,0.075,0.10),MAT['Trim_White'],0.01); box(prefix+'_Bottom',((x0+x1)/2,y,z-0.18),(L,0.07,0.08),MAT['Trim_White'],0.01)
-    n=max(2,int(L/0.22))
-    for i in range(n+1): box(f'{prefix}_Bal_{i:02d}',(x0+i*L/n,y,z+0.05),(0.055,0.055,0.55),MAT['Trim_White'],0.008)
+# ---------- diorama base ----------
+box('Base_Earth',(0,0,.10),(9.1,8.55,.34),M['stone'],.16); box('Base_Grass',(0,0,.31),(8.80,8.25,.21),M['grass'],.13)
+# front walkway with gap in fence
+for i in range(5): box(f'Path_{i}',(-2.15,-3.45+i*.50,.45),(1.05,.44,.09),M['path'],.03)
+for i in range(3): box(f'PathTurn_{i}',(-1.60+i*.52,-1.48,.45),(.46,.55,.08),M['path'],.025)
 
-def porch_railing_y(prefix,y0,y1,x,z=0.86):
-    L=y1-y0; box(prefix+'_Top',(x,(y0+y1)/2,z+0.35),(0.075,L,0.10),MAT['Trim_White'],0.01); box(prefix+'_Bottom',(x,(y0+y1)/2,z-0.18),(0.07,L,0.08),MAT['Trim_White'],0.01)
-    n=max(2,int(L/0.22))
-    for i in range(n+1): box(f'{prefix}_Bal_{i:02d}',(x,y0+i*L/n,z+0.05),(0.055,0.055,0.55),MAT['Trim_White'],0.008)
+# ---------- house body ----------
+box('Foundation',(-.25,.15,.60),(4.25,4.15,.40),M['stone'],.035)
+box('House_Main',(-.25,.15,1.95),(4.15,4.05,2.62),M['wall'],.022)
+# front-left projecting gable wall triangle only
+tri_prism('Front_Gable',-2.30,.20,3.26,4.86,-1.93,-1.82,M['wall'])
+# subtle siding
+for i,z in enumerate([.93,1.18,1.43,1.68,1.93,2.18,2.43,2.68,2.93,3.18]): box(f'SidingFront_{i}',(-.98,-1.935,z),(2.55,.026,.03),M['trim'],.003)
+for i,z in enumerate([3.42,3.65,3.88,4.11,4.34,4.57]):
+    w=max(.4,2.25-(z-3.3)*1.0); box(f'SidingGable_{i}',(-1.05,-1.95,z),(w,.026,.03),M['trim'],.003)
 
-def bush(prefix,loc,radius=0.28,light=False):
-    mat=MAT['Shrub_Light'] if light else MAT['Shrub']; x,y,z=loc
-    ico(prefix+'_A',(x,y,z),radius,mat,2,(1.0,0.9,0.9)); ico(prefix+'_B',(x+radius*0.45,y+radius*0.10,z+radius*0.15),radius*0.72,mat,2); ico(prefix+'_C',(x-radius*0.40,y-radius*0.08,z+radius*0.10),radius*0.68,mat,2)
+# facade windows
+win_front('WinLower',-1.20,-2.00,1.75,1.10,1.13,'wood')
+win_front('WinUpper',-1.20,-2.00,3.62,.82,.90,None)
+# brown lower awning
+box('WinLower_Awning',(-1.20,-2.12,2.40),(1.45,.20,.12),M['wood2'],.018,rot=(math.radians(-10),0,0))
+# entry near porch
+box('Door',(0.62,-2.00,1.38),(.76,.11,1.60),M['wood2'],.015)
+box('DoorFrameTop',(0.62,-2.07,2.23),(.93,.10,.09),M['trim'],.01); box('DoorFrameL',(0.16,-2.07,1.39),(.09,.10,1.70),M['trim'],.01); box('DoorFrameR',(1.08,-2.07,1.39),(.09,.10,1.70),M['trim'],.01)
+for j,x in enumerate([.45,.62,.79]): box(f'DoorPane{j}',(x,-2.07,1.80),(.11,.03,.30),M['glass'],.003)
 
-def tree(prefix,x,y,scale=1.0):
-    cylinder(prefix+'_Trunk',(x,y,0.78*scale),0.12*scale,1.20*scale,MAT['Wood'],18,0.015); base_z=1.55*scale
-    clumps=[(0,0,0.48),(0.32,0.08,0.34),(-0.30,0.10,0.35),(0.10,-0.28,0.33),(-0.16,-0.22,0.31),(0.05,0.18,0.32)]
-    for i,(ox,oy,r) in enumerate(clumps): ico(f'{prefix}_Leaf_{i:02d}',(x+ox*scale,y+oy*scale,base_z+(0.15 if i==0 else 0)*scale),r*scale,MAT['Tree_Dark'] if i%3==0 else MAT['Shrub_Light'],2)
+# ---------- cross-gabled roof ----------
+# main roof ridge left-right (X), front/back slopes in Y
+xc=-.20; xd=4.65; yr=.40; zR=5.05; yF=-2.08; yB=2.38; zE=3.18
+slope_y('RoofMainFront',yF,yr,xc,xd,zE,zR,M['roof']); slope_y('RoofMainBack',yB,yr,xc,xd,zE,zR,M['roof'])
+tiles_y('TileMainFront',yF,yr,xc,xd,zE,zR,7,11); tiles_y('TileMainBack',yB,yr,xc,xd,zE,zR,7,11)
+box('RoofMainRidge',(xc,yr,zR+.06),(xd+.15,.17,.17),M['roof2'],.055)
+# front-left cross gable ridge front-back (Y)
+xr=-1.18; ycg=-.70; yd=3.25; xL=-2.65; xR=.30; zEg=3.18; zRg=4.95
+slope_x('RoofCrossLeft',xL,xr,ycg,yd,zEg,zRg,M['roof']); slope_x('RoofCrossRight',xR,xr,ycg,yd,zEg,zRg,M['roof'])
+tiles_x('TileCrossLeft',xL,xr,ycg,yd,zEg,zRg,6,8); tiles_x('TileCrossRight',xR,xr,ycg,yd,zEg,zRg,6,8)
+box('RoofCrossRidge',(xr,ycg,zRg+.06),(.17,yd+.15,.17),M['roof2'],.055)
 
-def flower_cluster(prefix,x,y,matname='Flower_Pink'):
-    bush(prefix+'_Bush',(x,y,0.38),0.22,True)
-    for i,(ox,oy) in enumerate([(-0.08,-0.06),(0.08,-0.03),(-0.02,0.08),(0.10,0.10)]): ico(f'{prefix}_Flower_{i}',(x+ox,y+oy,0.60),0.045,MAT[matname],1)
+# ---------- dormer on main front slope ----------
+# body front faces -Y
+box('DormerBody',(.85,-.68,4.02),(1.22,.98,1.03),M['wall'],.018)
+tri_prism('DormerGable',.24,1.46,4.45,4.96,-1.18,-1.08,M['wall'])
+slope_x('DormerRoofL',.12,.85,-.67,1.30,4.43,5.02,M['roof']); slope_x('DormerRoofR',1.58,.85,-.67,1.30,4.43,5.02,M['roof'])
+tiles_x('DormerTileL',.12,.85,-.67,1.30,4.43,5.02,4,5); tiles_x('DormerTileR',1.58,.85,-.67,1.30,4.43,5.02,4,5)
+box('DormerRidge',(.85,-.67,5.07),(.15,1.40,.15),M['roof2'],.05)
+win_front('WinDormer',.85,-1.19,4.18,.72,.78,None)
 
-box('Base_Soil',(0,0,0.10),(9.4,8.9,0.35),MAT['Stone'],0.16)
-box('Base_Grass',(0,0,0.31),(9.05,8.55,0.22),MAT['Grass'],0.13)
-for i in range(5): box(f'Path_Slab_{i}',(-2.10,-3.48+i*0.52,0.46),(1.02,0.46,0.10),MAT['Path'],0.035)
-for i in range(3): box(f'Path_Side_{i}',(-1.55+i*0.55,-1.48,0.455),(0.50,0.62,0.08),MAT['Path'],0.025)
+# ---------- chimney ----------
+box('Chimney',(1.35,.88,5.45),(.52,.52,2.25),M['brick'],.01)
+for i,z in enumerate([4.62,4.87,5.12,5.37,5.62,5.87,6.12,6.37]): box(f'ChimneyBand{i}',(1.35,.88,z),(.55,.55,.026),M['brick2'],.002)
+box('ChimneyCap',(1.35,.88,6.63),(.72,.72,.17),M['stone'],.02); box('ChimneyHole',(1.35,.88,6.73),(.34,.34,.12),M['dark'],.01)
 
-box('Foundation_Main',(-0.45,0.15,0.58),(4.25,4.55,0.38),MAT['Stone'],0.035)
-box('Building_Main',(-0.45,0.15,2.00),(4.15,4.45,2.75),MAT['Wall_Main'],0.025)
-tri_prism('Gable_Front',-2.525,1.625,3.375,5.18,-2.095,-2.00,MAT['Wall_Main'])
-tri_prism('Gable_Back',-2.525,1.625,3.375,5.18,2.30,2.395,MAT['Wall_Main'])
-for i,z in enumerate([0.92,1.18,1.44,1.70,1.96,2.22,2.48,2.74,3.00,3.25]): box(f'Siding_Front_{i:02d}',(-0.45,-2.095,z),(4.05,0.025,0.035),MAT['Trim_White'],0.004)
-for i,z in enumerate([3.48,3.72,3.96,4.20,4.44,4.68]):
-    half=max(0.28,1.8-(z-3.4)*0.75); box(f'Siding_Gable_{i:02d}',(-0.45,-2.115,z),(half*2,0.025,0.032),MAT['Trim_White'],0.003)
-window_front('Window_Front_Lower',-1.13,-2.17,1.78,1.18,1.15,'Wood')
-window_front('Window_Front_Upper',-1.13,-2.17,3.72,0.90,0.92,'Roof_Blue')
-box('Window_Awning_Bar',(-1.13,-2.32,2.43),(1.52,0.24,0.13),MAT['Wood_Light'],0.025,rot=(math.radians(-12),0,0))
-box('Door_Main',(0.72,-2.17,1.40),(0.78,0.10,1.65),MAT['Wood_Light'],0.018)
-box('Door_Frame_Top',(0.72,-2.23,2.28),(0.95,0.10,0.10),MAT['Trim_White'],0.01); box('Door_Frame_L',(0.25,-2.23,1.42),(0.10,0.10,1.75),MAT['Trim_White'],0.01); box('Door_Frame_R',(1.19,-2.23,1.42),(0.10,0.10,1.75),MAT['Trim_White'],0.01)
-for ix in [-0.17,0.0,0.17]: box(f'Door_Glass_{ix}',(0.72+ix,-2.235,1.80),(0.11,0.035,0.34),MAT['Glass'],0.004)
+# ---------- wraparound porch ----------
+box('PorchFront',(1.62,-2.43,.73),(2.55,.92,.18),M['path'],.03); box('PorchSide',(2.33,-.40,.73),(1.06,3.15,.18),M['path'],.03)
+box('Step1',(.70,-3.03,.49),(1.05,.42,.16),M['path'],.025); box('Step2',(.70,-2.76,.61),(.92,.34,.14),M['path'],.025)
+# front lean roof and side lean roof
+slope_y('PorchRoofFront',-2.98,-1.72,1.55,3.05,2.52,3.05,M['roof']); tiles_y('PorchTileFront',-2.98,-1.72,1.55,3.05,2.52,3.05,4,8)
+slope_x('PorchRoofSide',3.22,1.73,-.25,3.45,2.58,3.10,M['roof']); tiles_x('PorchTileSide',3.22,1.73,-.25,3.45,2.58,3.10,4,9)
+# small entry gable over door
+slope_x('EntryRoofL',-.05,.62,-2.34,1.20,2.62,3.10,M['roof']); slope_x('EntryRoofR',1.30,.62,-2.34,1.20,2.62,3.10,M['roof']); tiles_x('EntryTileL',-.05,.62,-2.34,1.20,2.62,3.10,3,4); tiles_x('EntryTileR',1.30,.62,-2.34,1.20,2.62,3.10,3,4); box('EntryRidge',(.62,-2.34,3.15),(.15,1.30,.15),M['roof2'],.045)
+# posts
+posts=[(.00,-2.83),(.95,-2.83),(1.95,-2.83),(2.78,-2.83),(2.85,-1.75),(2.85,-.75),(2.85,.30),(2.85,1.05)]
+for i,(x,y) in enumerate(posts):
+    box(f'Post{i}',(x,y,1.65),(.15,.15,1.88),M['trim'],.016); box(f'PostBase{i}',(x,y,.82),(.23,.23,.23),M['trim'],.016); box(f'PostCap{i}',(x,y,2.56),(.22,.22,.14),M['trim'],.016)
+box('BeamFront',(1.40,-2.83,2.59),(2.90,.15,.18),M['trim'],.014); box('BeamSide',(2.85,-.34,2.59),(.15,2.85,.18),M['trim'],.014)
+railing_x('RailFrontA',-.02,.15,-2.83); railing_x('RailFrontB',1.28,2.70,-2.83); railing_y('RailSideA',-2.48,-1.28,2.85); railing_y('RailSideB',-.90,.90,2.85)
+# right wall window under porch
+win_side('WinSide',1.86,-.35,1.58,.86,.96)
 
-xL=-2.75; xR=1.85; xr=-0.45; z_e=3.32; z_r=5.35; ymid=0.15; ydepth=4.95
-roof_panel_x('Roof_Main_Left',xL,xr,ymid,ydepth,z_e,z_r,MAT['Roof_Blue']); roof_panel_x('Roof_Main_Right',xR,xr,ymid,ydepth,z_e,z_r,MAT['Roof_Blue'])
-roof_shingles_x('Tile_Main_Left',xL,xr,ymid,ydepth,z_e,z_r,8,11); roof_shingles_x('Tile_Main_Right',xR,xr,ymid,ydepth,z_e,z_r,8,11)
-box('Roof_Main_Ridge',(xr,ymid,z_r+0.07),(0.18,ydepth+0.12,0.18),MAT['Roof_Blue_Light'],0.06)
+# ---------- fence (lower than previous model) ----------
+def picket(n,x,y,axis='x'):
+    dims=(.08,.06,.58) if axis=='x' else (.06,.08,.58); box(n,(x,y,.72),dims,M['trim'],.014)
+    if axis=='x': v=[(x-.04,y-.03,1.01),(x+.04,y-.03,1.01),(x,y-.03,1.13),(x-.04,y+.03,1.01),(x+.04,y+.03,1.01),(x,y+.03,1.13)]
+    else: v=[(x-.03,y-.04,1.01),(x+.03,y-.04,1.01),(x,y,1.13),(x-.03,y+.04,1.01),(x+.03,y+.04,1.01),(x,y,1.13)]
+    f=[(0,1,2),(3,5,4),(0,3,4,1),(1,4,5,2),(2,5,3,0)]; mesh(n+'Tip',v,f,M['trim'])
+fy=-3.92
+for i,x in enumerate([-4.0+i*.31 for i in range(27)]):
+    if not (-2.72<x<-1.55): picket(f'FenceF{i}',x,fy,'x')
+box('FRailL',(-3.36,fy,.73),(1.24,.055,.065),M['trim'],.006); box('FRailL2',(-3.36,fy,.92),(1.24,.055,.065),M['trim'],.006); box('FRailR',(1.20,fy,.73),(5.00,.055,.065),M['trim'],.006); box('FRailR2',(1.20,fy,.92),(5.00,.055,.065),M['trim'],.006)
+rx=4.06
+for i,y in enumerate([-3.65+i*.33 for i in range(23)]): picket(f'FenceR{i}',rx,y,'y')
+box('RRail',(rx,.0,.73),(.055,7.35,.065),M['trim'],.006); box('RRail2',(rx,.0,.92),(.055,7.35,.065),M['trim'],.006)
+for i,(x,y) in enumerate([(-4.10,fy),(-2.82,fy),(-1.45,fy),(4.06,fy),(4.06,3.72)]): box(f'FencePost{i}',(x,y,.74),(.16,.16,.82),M['trim'],.018); box(f'FencePostCap{i}',(x,y,1.18),(.21,.21,.10),M['trim'],.014)
 
-box('Porch_Deck_Front',(1.60,-2.52,0.72),(2.35,1.06,0.18),MAT['Path'],0.035); box('Porch_Deck_Side',(2.22,-0.65,0.72),(1.10,2.75,0.18),MAT['Path'],0.035)
-box('Porch_Step_1',(0.82,-3.20,0.50),(1.10,0.42,0.16),MAT['Path'],0.025); box('Porch_Step_2',(0.82,-2.91,0.62),(0.98,0.38,0.14),MAT['Path'],0.025)
-box('Porch_Side_Step_1',(2.88,0.65,0.50),(0.42,0.92,0.16),MAT['Path'],0.025); box('Porch_Side_Step_2',(2.63,0.65,0.62),(0.34,0.82,0.14),MAT['Path'],0.025)
-roof_panel_x('Roof_Porch_Side',3.15,1.25,-0.38,4.10,2.75,3.65,MAT['Roof_Blue']); roof_shingles_x('Tile_Porch_Side',3.15,1.25,-0.38,4.10,2.75,3.65,5,10)
-post_xy=[(0.55,-2.92),(1.55,-2.92),(2.55,-2.92),(2.90,-1.70),(2.90,-0.55),(2.90,0.65)]
-for i,(x,y) in enumerate(post_xy):
-    box(f'Porch_Post_{i:02d}',(x,y,1.67),(0.16,0.16,1.98),MAT['Trim_White'],0.018); box(f'Porch_Post_Base_{i:02d}',(x,y,0.82),(0.24,0.24,0.25),MAT['Trim_White'],0.018); box(f'Porch_Post_Cap_{i:02d}',(x,y,2.61),(0.23,0.23,0.15),MAT['Trim_White'],0.018)
-box('Porch_Beam_Front',(1.55,-2.92,2.64),(2.15,0.16,0.18),MAT['Trim_White'],0.018); box('Porch_Beam_Side',(2.90,-0.52,2.64),(0.16,2.55,0.18),MAT['Trim_White'],0.018)
-porch_railing_x('Railing_Front_L',0.50,0.65,-2.92); porch_railing_x('Railing_Front_R',1.28,2.65,-2.92); porch_railing_y('Railing_Side_A',-2.52,-1.15,2.90); porch_railing_y('Railing_Side_B',-0.70,0.30,2.90)
-roof_panel_y('Roof_Porch_Gable_Front',-3.10,-2.60,0.78,1.65,2.73,3.15,MAT['Roof_Blue']); roof_panel_y('Roof_Porch_Gable_Back',-2.10,-2.60,0.78,1.65,2.73,3.15,MAT['Roof_Blue'])
-roof_shingles_y('Tile_Porch_Gable_Front',-3.10,-2.60,0.78,1.65,2.73,3.15,3,5); roof_shingles_y('Tile_Porch_Gable_Back',-2.10,-2.60,0.78,1.65,2.73,3.15,3,5)
-box('Roof_Porch_Gable_Ridge',(0.78,-2.60,3.22),(1.78,0.15,0.15),MAT['Roof_Blue_Light'],0.05)
+# ---------- landscaping ----------
+for i,x in enumerate([-3.68,-3.20,-2.72]): box(f'HedgeF{i}',(x,-3.04,.70),(.46,.48,.50),M['green'],.15)
+for i,y in enumerate([-2.52,-2.02,-1.52,-1.02,-.52]): box(f'HedgeL{i}',(-3.70,y,.70),(.49,.44,.50),M['green'],.15)
+tree('TreeLeft',-3.60,.20,1.0); tree('TreeBack',-3.05,2.65,.88); tree('TreeRight',3.55,1.95,.92)
+for i,(x,y,r) in enumerate([(-2.45,-1.55,.25),(-1.95,-1.47,.23),(-1.50,-1.48,.21),(-.45,-1.48,.22),(.05,-1.55,.22),(1.60,-3.05,.24),(2.15,-3.02,.23),(2.70,-2.90,.24),(3.20,-2.45,.26),(3.35,-1.85,.25),(3.34,-1.20,.23),(3.33,-.55,.25),(3.28,.18,.24),(3.06,.88,.24),(-2.40,2.65,.24)]): bush(f'Bush{i}',x,y,r,i%2==0)
+for i,(x,y,c) in enumerate([(-2.30,-1.25,'pink'),(-1.65,-1.22,'whiteflower'),(-.85,-1.22,'yellow'),(.10,-1.30,'pink'),(1.20,-3.12,'pink'),(2.50,-3.05,'yellow'),(3.42,-1.48,'pink'),(3.30,-.10,'whiteflower'),(3.10,.70,'yellow')]): flower(f'Flower{i}',x,y,c)
 
-box('Dormer_Body',(1.16,0.55,4.15),(1.20,1.34,1.18),MAT['Wall_Main'],0.018)
-roof_panel_y('Dormer_Roof_A',-0.30,0.55,1.18,1.55,4.43,5.05,MAT['Roof_Blue']); roof_panel_y('Dormer_Roof_B',1.40,0.55,1.18,1.55,4.43,5.05,MAT['Roof_Blue'])
-roof_shingles_y('Dormer_Tile_A',-0.30,0.55,1.18,1.55,4.43,5.05,4,5); roof_shingles_y('Dormer_Tile_B',1.40,0.55,1.18,1.55,4.43,5.05,4,5)
-box('Dormer_Ridge',(1.18,0.55,5.11),(1.65,0.14,0.14),MAT['Roof_Blue_Light'],0.05); window_side('Window_Dormer',1.80,0.55,4.23,0.76,0.82); window_side('Window_Right',1.67,-0.25,1.62,0.90,1.02)
+# ---------- cleanup ----------
+for o in [o for o in scene.objects if o.type=='MESH']:
+    bpy.context.view_layer.objects.active=o; o.select_set(True); bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+    bm=bmesh.new(); bm.from_mesh(o.data); bmesh.ops.remove_doubles(bm,verts=bm.verts,dist=1e-6); bmesh.ops.recalc_face_normals(bm,faces=bm.faces); bm.to_mesh(o.data); bm.free(); o.data.update(); o.select_set(False)
 
-box('Chimney_Main',(0.72,1.45,5.55),(0.56,0.56,2.35),MAT['Brick'],0.012)
-for i,z in enumerate([4.70,4.95,5.20,5.45,5.70,5.95,6.20,6.45]): box(f'Chimney_Mortar_{i:02d}',(0.72,1.455,z),(0.59,0.59,0.028),MAT['Brick_Light'],0.003)
-box('Chimney_Cap',(0.72,1.45,6.78),(0.75,0.75,0.18),MAT['Stone'],0.025); box('Chimney_Flue',(0.72,1.45,6.89),(0.38,0.38,0.16),MAT['Dark'],0.015)
+# ---------- lighting / camera ----------
+def look(o,t): o.rotation_euler=(Vector(t)-o.location).to_track_quat('-Z','Y').to_euler()
+scene.world.use_nodes=True; bg=scene.world.node_tree.nodes.get('Background'); bg.inputs['Color'].default_value=(0.90,0.86,0.77,1); bg.inputs['Strength'].default_value=.38
+bpy.ops.object.light_add(type='AREA',location=(5.5,-7.0,10.5)); key=bpy.context.object; key.data.energy=1150; key.data.size=5; look(key,(0,0,2.0))
+bpy.ops.object.light_add(type='AREA',location=(-5,2,7)); fill=bpy.context.object; fill.data.energy=300; fill.data.size=6; look(fill,(0,0,2))
+bpy.ops.object.light_add(type='SUN',location=(0,0,8)); sun=bpy.context.object; sun.data.energy=1.2; sun.rotation_euler=(math.radians(25),math.radians(-20),math.radians(-30))
+box('Backdrop',(0,0,-.18),(18,18,.14),M['bg'],.03)
+bpy.ops.object.camera_add(location=(9.5,-11.5,8.5)); cam=bpy.context.object; cam.name='Camera'; cam.data.type='ORTHO'; cam.data.ortho_scale=10.4; scene.camera=cam; look(cam,(0,-.1,2.0))
 
-def picket(prefix,x,y,along='x'):
-    if along=='x':
-        box(prefix,(x,y,0.91),(0.10,0.08,0.95),MAT['Trim_White'],0.018); verts=[(x-0.05,y-0.04,1.385),(x+0.05,y-0.04,1.385),(x,y-0.04,1.52),(x-0.05,y+0.04,1.385),(x+0.05,y+0.04,1.385),(x,y+0.04,1.52)]
-    else:
-        box(prefix,(x,y,0.91),(0.08,0.10,0.95),MAT['Trim_White'],0.018); verts=[(x-0.04,y-0.05,1.385),(x+0.04,y-0.05,1.385),(x,y,1.52),(x-0.04,y+0.05,1.385),(x+0.04,y+0.05,1.385),(x,y,1.52)]
-    faces=[(0,1,2),(3,5,4),(0,3,4,1),(1,4,5,2),(2,5,3,0)]; mesh_obj(prefix+'_Tip',verts,faces,MAT['Trim_White'])
-
-front_y=-4.05
-for i,x in enumerate([-4.0+i*0.34 for i in range(25)]):
-    if not (-2.72 < x < -1.50): picket(f'Fence_Front_{i:02d}',x,front_y,'x')
-box('Fence_Front_Rail_L',(-3.35,front_y,0.95),(1.25,0.07,0.09),MAT['Trim_White'],0.008); box('Fence_Front_Rail_L2',(-3.35,front_y,1.18),(1.25,0.07,0.09),MAT['Trim_White'],0.008)
-box('Fence_Front_Rail_R',(1.15,front_y,0.95),(5.00,0.07,0.09),MAT['Trim_White'],0.008); box('Fence_Front_Rail_R2',(1.15,front_y,1.18),(5.00,0.07,0.09),MAT['Trim_White'],0.008)
-right_x=4.18
-for i,y in enumerate([-3.72+i*0.36 for i in range(22)]): picket(f'Fence_Right_{i:02d}',right_x,y,'y')
-box('Fence_Right_Rail',(right_x,-0.05,0.95),(0.07,7.35,0.09),MAT['Trim_White'],0.008); box('Fence_Right_Rail2',(right_x,-0.05,1.18),(0.07,7.35,0.09),MAT['Trim_White'],0.008)
-for i,(x,y) in enumerate([(-4.10,front_y),(-2.82,front_y),(-1.42,front_y),(4.18,front_y),(4.18,3.80)]): box(f'Fence_Post_{i:02d}',(x,y,0.93),(0.18,0.18,1.12),MAT['Trim_White'],0.022); box(f'Fence_Post_Cap_{i:02d}',(x,y,1.52),(0.24,0.24,0.12),MAT['Trim_White'],0.018)
-
-for i,x in enumerate([-3.65,-3.15,-2.65]): box(f'Hedge_LeftFront_{i}',(x,-3.05,0.78),(0.48,0.52,0.58),MAT['Shrub'],0.16)
-for i,y in enumerate([-2.45,-1.90,-1.35,-0.80]): box(f'Hedge_LeftSide_{i}',(-3.70,y,0.78),(0.52,0.48,0.58),MAT['Shrub'],0.16)
-for args in [('Tree_Left',-3.72,0.15,1.0),('Tree_BackLeft',-3.20,2.55,0.85),('Tree_Right',3.75,1.95,0.90)]: tree(*args)
-shrubs=[(-2.50,-1.75,0.28),(-2.10,-1.60,0.26),(-1.60,-1.55,0.24),(-0.10,-1.52,0.26),(1.85,-3.05,0.27),(2.35,-3.00,0.25),(3.15,-2.45,0.28),(3.35,-1.65,0.30),(3.35,-0.85,0.27),(3.35,0.35,0.27),(2.70,1.20,0.26),(-2.40,2.65,0.25)]
-for i,(x,y,r) in enumerate(shrubs): bush(f'Shrub_{i:02d}',(x,y,0.58),r,i%2==0)
-for i,(x,y,mat) in enumerate([(-2.25,-1.35,'Flower_Pink'),(-1.55,-1.30,'Flower_White'),(-0.35,-1.37,'Flower_Yellow'),(1.35,-3.15,'Flower_Pink'),(2.78,-2.78,'Flower_White'),(3.48,-1.20,'Flower_Pink'),(3.25,0.80,'Flower_Yellow')]): flower_cluster(f'FlowerBed_{i:02d}',x,y,mat)
-
-for obj in [o for o in bpy.context.scene.objects if o.type=='MESH']:
-    bpy.context.view_layer.objects.active=obj; obj.select_set(True); bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    bm=bmesh.new(); bm.from_mesh(obj.data); bmesh.ops.remove_doubles(bm,verts=bm.verts,dist=1e-6); bmesh.ops.recalc_face_normals(bm,faces=bm.faces); bm.to_mesh(obj.data); bm.free(); obj.data.update(); obj.select_set(False)
-
-def look_at(obj,target): obj.rotation_euler=(Vector(target)-obj.location).to_track_quat('-Z','Y').to_euler()
-scene.world.color=(0.88,0.85,0.78)
-try:
-    scene.world.use_nodes=True; bg=scene.world.node_tree.nodes.get('Background'); bg.inputs['Color'].default_value=(0.90,0.87,0.80,1); bg.inputs['Strength'].default_value=0.8
-except Exception: pass
-bpy.ops.object.light_add(type='AREA',location=(5.5,-6.5,10.5)); key=bpy.context.object; key.name='Light_Key'; key.data.energy=1050; key.data.shape='DISK'; key.data.size=5.5; look_at(key,(0,0,2.2))
-bpy.ops.object.light_add(type='AREA',location=(-5.0,-1.0,7.0)); fill=bpy.context.object; fill.name='Light_Fill'; fill.data.energy=500; fill.data.size=6.0; look_at(fill,(0,0,2.0))
-bpy.ops.object.light_add(type='SUN',location=(0,0,8)); sun=bpy.context.object; sun.name='Light_Sun'; sun.data.energy=1.6; sun.rotation_euler=(math.radians(25),math.radians(-20),math.radians(-30))
-box('Backdrop_Floor',(0,0,-0.18),(18,18,0.15),make_mat('Backdrop',(0.86,0.83,0.76),0.9),0.04)
-bpy.ops.object.camera_add(location=(10.0,-12.0,10.0)); cam=bpy.context.object; cam.name='Camera'; scene.camera=cam; cam.data.type='ORTHO'; cam.data.ortho_scale=11.0; cam.data.lens=48; look_at(cam,(0,0,2.2))
-
-blend_path=os.path.join(OUT,'model.blend'); bpy.ops.wm.save_as_mainfile(filepath=blend_path)
-for o in bpy.context.scene.objects: o.select_set(False)
-for o in bpy.context.scene.objects:
-    if o.type=='MESH' and o.name!='Backdrop_Floor': o.select_set(True)
+# ---------- save/export/render ----------
+blend=os.path.join(OUT,'model.blend'); bpy.ops.wm.save_as_mainfile(filepath=blend)
+for o in scene.objects:o.select_set(False)
+for o in scene.objects:
+    if o.type=='MESH' and o.name!='Backdrop': o.select_set(True)
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,'model.glb'),export_format='GLB',use_selection=True,export_apply=True)
-views={'preview_perspective.png':((10,-12,10),(0,0,2.2),11.0),'preview_front.png':((0,-14,5.0),(-0.3,0,2.2),10.3),'preview_back.png':((0,14,5.0),(-0.3,0,2.2),10.3),'preview_left.png':((-14,0,5.0),(0,0,2.2),10.3),'preview_right.png':((14,0,5.0),(0,0,2.2),10.3),'preview_top.png':((0,0,16),(0,0,0),10.7)}
-for filename,(pos,target,scale) in views.items():
-    cam.location=pos; cam.data.ortho_scale=scale; look_at(cam,target); scene.render.filepath=os.path.join(OUT,filename); bpy.ops.render.render(write_still=True)
-cam.location=(10,-12,10); cam.data.ortho_scale=11.0; look_at(cam,(0,0,2.2)); bpy.ops.wm.save_as_mainfile(filepath=blend_path)
-print('BUILD_COMPLETE')
+views={
+'preview_perspective.png':((9.5,-11.5,8.5),(0,-.1,2.0),10.4),
+'preview_front.png':((0,-14,4.6),(-.3,0,2.1),9.6),
+'preview_back.png':((0,14,4.6),(-.3,0,2.1),9.6),
+'preview_left.png':((-14,0,4.6),(0,0,2.1),9.6),
+'preview_right.png':((14,0,4.6),(0,0,2.1),9.6),
+'preview_top.png':((0,0,16),(0,0,0),9.8)}
+for fn,(pos,target,scale) in views.items(): cam.location=pos; cam.data.ortho_scale=scale; look(cam,target); scene.render.filepath=os.path.join(OUT,fn); bpy.ops.render.render(write_still=True)
+cam.location=(9.5,-11.5,8.5); cam.data.ortho_scale=10.4; look(cam,(0,-.1,2.0)); bpy.ops.wm.save_as_mainfile(filepath=blend)
+print('BUILD_COMPLETE_V3')
