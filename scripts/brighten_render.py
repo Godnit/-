@@ -7,34 +7,35 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) if '__file
 OUT = os.path.join(ROOT, 'output')
 scene = bpy.context.scene
 
-# High-key color management: brighter, softer, closer to the reference image.
+# Bright reference-style color management without clipping the white walls.
 try:
     scene.view_settings.view_transform = 'Standard'
     scene.view_settings.look = 'Medium Low Contrast'
 except Exception:
     pass
-scene.view_settings.exposure = 0.85
+scene.view_settings.exposure = 0.30
 scene.view_settings.gamma = 1.0
 
-# Brighter warm-white environment so shadowed walls/porch are not muddy.
+# Warm high-key environment: bright enough to lift porch/roof shadows,
+# but lower than the previous pass so details are not washed out.
 scene.world.use_nodes = True
 bg = scene.world.node_tree.nodes.get('Background')
 if bg:
-    bg.inputs['Color'].default_value = (0.98, 0.965, 0.92, 1.0)
-    bg.inputs['Strength'].default_value = 0.62
+    bg.inputs['Color'].default_value = (0.985, 0.975, 0.945, 1.0)
+    bg.inputs['Strength'].default_value = 0.46
 
-# Make the studio floor/backdrop closer to the cream-white reference background.
+# Cream-white studio floor/backdrop like the reference image.
 backdrop = bpy.data.objects.get('Backdrop')
 if backdrop and backdrop.type == 'MESH' and backdrop.data.materials:
     mat = backdrop.data.materials[0]
-    mat.diffuse_color = (0.96, 0.945, 0.90, 1.0)
+    mat.diffuse_color = (0.975, 0.965, 0.93, 1.0)
     if mat.use_nodes:
         bsdf = mat.node_tree.nodes.get('Principled BSDF')
         if bsdf:
-            bsdf.inputs['Base Color'].default_value = (0.96, 0.945, 0.90, 1.0)
+            bsdf.inputs['Base Color'].default_value = (0.975, 0.965, 0.93, 1.0)
             bsdf.inputs['Roughness'].default_value = 0.95
 
-# Replace the old darker lighting with a soft high-key 3-point setup.
+# Replace the old lighting with a balanced high-key three-point setup.
 for obj in list(scene.objects):
     if obj.type == 'LIGHT':
         bpy.data.objects.remove(obj, do_unlink=True)
@@ -53,20 +54,20 @@ def add_area(name, location, energy, size, target=(0, 0, 2.0), color=(1.0, 0.97,
     look_at(light, target)
     return light
 
-# Large soft key from upper-left/front, strong fill from the other side,
-# plus a gentle top/front lift. This keeps shadows visible but not dark.
-add_area('Key_Softbox', (-5.8, -7.8, 11.5), 1550, 5.5, (-0.2, -0.2, 2.0), (1.0, 0.94, 0.84))
-add_area('Fill_Softbox', (6.5, -1.5, 8.5), 900, 6.5, (0.2, 0.0, 2.1), (0.93, 0.97, 1.0))
-add_area('Front_Lift', (0.0, -8.5, 6.0), 500, 7.0, (0.0, -0.3, 1.8), (1.0, 0.98, 0.94))
+# Large soft key + gentle fill + front lift. Keeps visible soft shadows
+# and preserves blue roof / beige wall color instead of bleaching them.
+add_area('Key_Softbox', (-5.8, -7.8, 11.5), 1150, 5.8, (-0.2, -0.2, 2.0), (1.0, 0.95, 0.87))
+add_area('Fill_Softbox', (6.5, -1.5, 8.5), 600, 7.0, (0.2, 0.0, 2.1), (0.94, 0.97, 1.0))
+add_area('Front_Lift', (0.0, -8.5, 6.0), 280, 7.5, (0.0, -0.3, 1.8), (1.0, 0.985, 0.95))
 
 bpy.ops.object.light_add(type='SUN', location=(0, 0, 9))
 sun = bpy.context.object
 sun.name = 'Sun_Soft'
-sun.data.energy = 1.25
-sun.data.angle = math.radians(18)
+sun.data.energy = 0.90
+sun.data.angle = math.radians(20)
 sun.rotation_euler = (math.radians(28), math.radians(-18), math.radians(-38))
 
-# Preserve the same approved camera framing and rerender every preview.
+# Preserve the approved camera framing and rerender every preview.
 cam = scene.camera
 if cam is None:
     bpy.ops.object.camera_add(location=(9.5, -11.5, 8.5))
@@ -92,9 +93,9 @@ views = {
 for filename, (pos, target, scale) in views.items():
     render_view(filename, pos, target, scale)
 
-# Return to the perspective view and save the brighter Blender file too.
+# Return to the perspective view and save the balanced bright Blender file.
 cam.location = (9.5, -11.5, 8.5)
 cam.data.ortho_scale = 10.4
 look_at(cam, (0, -0.1, 2.0))
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, 'model.blend'))
-print('BRIGHT_HIGH_KEY_RENDER_COMPLETE')
+print('BALANCED_BRIGHT_REFERENCE_RENDER_COMPLETE')
