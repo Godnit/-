@@ -1,0 +1,94 @@
+name: AI Image to 3D Experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'references/house_reference.jpg'
+      - 'scripts/postprocess_ai_mesh.py'
+      - '.github/workflows/ai-image-to-3d.yml'
+
+jobs:
+  triposr-reconstruction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout cottage repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install system build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build git libgl1 libglib2.0-0
+
+      - name: Clone pinned TripoSR
+        run: |
+          git clone https://github.com/VAST-AI-Research/TripoSR.git third_party/TripoSR
+          cd third_party/TripoSR
+          git checkout 107cefdc244c39106fa830359024f6a2f1c78871
+
+      - name: Install CPU PyTorch and TripoSR dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          cd third_party/TripoSR
+          python -m pip install -r requirements.txt
+
+      - name: Reconstruct cottage from the original image on CPU
+        env:
+          HF_HOME: ${{ github.workspace }}/.hf-cache
+        run: |
+          mkdir -p ai_raw
+          cd third_party/TripoSR
+          python run.py \
+            ../../references/house_reference.jpg \
+            --device cpu \
+            --chunk-size 2048 \
+            --mc-resolution 128 \
+            --foreground-ratio 0.92 \
+            --model-save-format glb \
+            --output-dir ../../ai_raw
+          test -s ../../ai_raw/0/mesh.glb
+          ls -lh ../../ai_raw/0/
+
+      - name: Install Blender for mesh inspection
+        run: |
+          sudo apt-get install -y blender xvfb libglu1-mesa
+          blender --version
+
+      - name: Normalize clean and render AI mesh
+        run: |
+          xvfb-run -a blender --background --python scripts/postprocess_ai_mesh.py
+
+      - name: Verify AI experiment outputs
+        run: |
+          test -s ai_output/ai_model.blend
+          test -s ai_output/ai_model.glb
+          test -s ai_output/ai_model_report.txt
+          test -s ai_output/ai_preview_perspective.png
+          test -s ai_output/ai_preview_front.png
+          test -s ai_output/ai_preview_back.png
+          test -s ai_output/ai_preview_left.png
+          test -s ai_output/ai_preview_right.png
+          test -s ai_output/ai_preview_top.png
+          cat ai_output/ai_model_report.txt
+          ls -lh ai_output/
+
+      - name: Upload AI reconstruction artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: triposr-cottage-experiment
+          path: |
+            ai_output/
+            ai_raw/0/input.png
+            ai_raw/0/mesh.glb
+          if-no-files-found: error
+          compression-level: 6
