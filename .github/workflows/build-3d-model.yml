@@ -26,6 +26,10 @@ jobs:
           mkdir -p output
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python scripts/build_model.py
 
+      - name: Apply bright reference-style lighting
+        run: |
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python scripts/brighten_render.py
+
       - name: Validate model
         run: |
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python scripts/validate_model.py
