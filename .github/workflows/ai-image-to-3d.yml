@@ -41,7 +41,8 @@ jobs:
           cd third_party/TripoSR
           grep -v '^gradio' requirements.txt > requirements-inference.txt
           python -m pip install -r requirements-inference.txt
-          python -m pip install onnxruntime
+          python -m pip install onnxruntime 'numpy==1.26.4'
+          python -c "import numpy; print('NumPy', numpy.__version__)"
 
       - name: Reconstruct cottage from the original image on CPU
         env:
