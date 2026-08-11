@@ -1,0 +1,89 @@
+name: TripoSR Cottage V1
+
+on:
+  push:
+    branches: [ ai-triposr-experiment ]
+    paths:
+      - 'references/cottage_reference.jpg'
+      - 'scripts/ai/postprocess_triposr_v1.py'
+      - '.github/workflows/triposr-cottage-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  image-to-3d:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm reference
+        run: |
+          test -s references/cottage_reference.jpg
+          file references/cottage_reference.jpg
+          ls -lh references/cottage_reference.jpg
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Blender and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git build-essential cmake ninja-build libgl1 libglib2.0-0 blender xvfb libglu1-mesa
+          blender --version
+
+      - name: Clone official TripoSR
+        run: |
+          git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git external/TripoSR
+          git -C external/TripoSR rev-parse HEAD | tee triposr_commit.txt
+
+      - name: Install CPU inference dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          python -m pip install -r external/TripoSR/requirements.txt
+          python - <<'PY'
+          import torch
+          print('Torch:', torch.__version__)
+          print('CUDA available:', torch.cuda.is_available())
+          PY
+
+      - name: Reconstruct cottage from the single reference image
+        env:
+          HF_HUB_DISABLE_TELEMETRY: '1'
+        run: |
+          mkdir -p triposr-raw
+          python external/TripoSR/run.py references/cottage_reference.jpg --output-dir triposr-raw --device cpu --mc-resolution 192
+          find triposr-raw -type f -maxdepth 5 -print
+          OBJ_PATH="$(find triposr-raw -type f -name '*.obj' | head -n 1)"
+          test -n "$OBJ_PATH"
+          test -s "$OBJ_PATH"
+          printf '%s' "$OBJ_PATH" > triposr_obj_path.txt
+
+      - name: Clean mesh in Blender and export GLB
+        run: |
+          mkdir -p ai-output
+          OBJ_PATH="$(cat triposr_obj_path.txt)"
+          xvfb-run -a blender --background --python scripts/ai/postprocess_triposr_v1.py -- "$OBJ_PATH"
+          test -s ai-output/triposr_model.blend
+          test -s ai-output/triposr_model.glb
+          test -s ai-output/triposr_preview_perspective.png
+          cat ai-output/triposr_report.txt
+
+      - name: Collect experiment files
+        if: always()
+        run: |
+          mkdir -p ai-output
+          cp -f triposr_commit.txt ai-output/ 2>/dev/null || true
+          cp -f triposr_obj_path.txt ai-output/ 2>/dev/null || true
+          OBJ_PATH="$(find triposr-raw -type f -name '*.obj' | head -n 1 || true)"
+          if [ -n "$OBJ_PATH" ]; then cp -f "$OBJ_PATH" ai-output/triposr_raw.obj; fi
+
+      - name: Upload experiment
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cottage-triposr-v1
+          path: ai-output/
+          if-no-files-found: warn
+          compression-level: 6
