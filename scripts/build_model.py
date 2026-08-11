@@ -23,7 +23,7 @@ def mat(name,c,rough=.65,metal=0):
     m.diffuse_color=(*c,1); return m
 M={
 'wall':mat('Wall_Main',(0.92,0.89,0.80),.82), 'trim':mat('Trim_White',(0.98,0.97,0.93),.72),
-'roof':mat('Roof_Blue',(0.035,0.16,0.34),.6), 'roof2':mat('Roof_Tile',(0.055,0.23,0.49),.58),
+'roof':mat('Roof_Blue',(0.008,0.035,0.12),.62), 'roof2':mat('Roof_Tile',(0.012,0.060,0.20),.60),
 'wood':mat('Wood',(0.42,0.20,0.07),.7), 'wood2':mat('Wood_Light',(0.62,0.31,0.10),.7),
 'glass':mat('Glass',(0.08,0.20,0.26),.22), 'brick':mat('Brick',(0.70,0.39,0.15),.8), 'brick2':mat('Brick_Light',(0.83,0.58,0.30),.8),
 'stone':mat('Stone',(0.52,0.42,0.34),.86), 'path':mat('Path',(0.73,0.65,0.55),.9),
@@ -106,12 +106,10 @@ box('House_Main',(-.25,.15,1.95),(4.15,4.05,2.62),M['wall'],.022)
 tri_prism('Front_Gable',-2.30,.20,3.26,4.86,-1.93,-1.82,M['wall'])
 # subtle siding
 for i,z in enumerate([.93,1.18,1.43,1.68,1.93,2.18,2.43,2.68,2.93,3.18]): box(f'SidingFront_{i}',(-.98,-1.935,z),(2.55,.026,.03),M['trim'],.003)
-for i,z in enumerate([3.42,3.65,3.88,4.11,4.34,4.57]):
-    w=max(.4,2.25-(z-3.3)*1.0); box(f'SidingGable_{i}',(-1.05,-1.95,z),(w,.026,.03),M['trim'],.003)
 
 # facade windows
 win_front('WinLower',-1.20,-2.00,1.75,1.10,1.13,'wood')
-win_front('WinUpper',-1.20,-2.00,3.62,.82,.90,None)
+win_front('WinUpper',-1.20,-2.00,3.62,.82,.90,'roof')
 # brown lower awning
 box('WinLower_Awning',(-1.20,-2.12,2.40),(1.45,.20,.12),M['wood2'],.018,rot=(math.radians(-10),0,0))
 # entry near porch
@@ -191,10 +189,10 @@ for o in [o for o in scene.objects if o.type=='MESH']:
 
 # ---------- lighting / camera ----------
 def look(o,t): o.rotation_euler=(Vector(t)-o.location).to_track_quat('-Z','Y').to_euler()
-scene.world.use_nodes=True; bg=scene.world.node_tree.nodes.get('Background'); bg.inputs['Color'].default_value=(0.90,0.86,0.77,1); bg.inputs['Strength'].default_value=.38
-bpy.ops.object.light_add(type='AREA',location=(5.5,-7.0,10.5)); key=bpy.context.object; key.data.energy=1150; key.data.size=5; look(key,(0,0,2.0))
-bpy.ops.object.light_add(type='AREA',location=(-5,2,7)); fill=bpy.context.object; fill.data.energy=300; fill.data.size=6; look(fill,(0,0,2))
-bpy.ops.object.light_add(type='SUN',location=(0,0,8)); sun=bpy.context.object; sun.data.energy=1.2; sun.rotation_euler=(math.radians(25),math.radians(-20),math.radians(-30))
+scene.world.use_nodes=True; bg=scene.world.node_tree.nodes.get('Background'); bg.inputs['Color'].default_value=(0.90,0.86,0.77,1); bg.inputs['Strength'].default_value=.30
+bpy.ops.object.light_add(type='AREA',location=(5.5,-7.0,10.5)); key=bpy.context.object; key.data.energy=820; key.data.size=5; look(key,(0,0,2.0))
+bpy.ops.object.light_add(type='AREA',location=(-5,2,7)); fill=bpy.context.object; fill.data.energy=220; fill.data.size=6; look(fill,(0,0,2))
+bpy.ops.object.light_add(type='SUN',location=(0,0,8)); sun=bpy.context.object; sun.data.energy=.85; sun.rotation_euler=(math.radians(25),math.radians(-20),math.radians(-30))
 box('Backdrop',(0,0,-.18),(18,18,.14),M['bg'],.03)
 bpy.ops.object.camera_add(location=(9.5,-11.5,8.5)); cam=bpy.context.object; cam.name='Camera'; cam.data.type='ORTHO'; cam.data.ortho_scale=10.4; scene.camera=cam; look(cam,(0,-.1,2.0))
 
@@ -213,4 +211,4 @@ views={
 'preview_top.png':((0,0,16),(0,0,0),9.8)}
 for fn,(pos,target,scale) in views.items(): cam.location=pos; cam.data.ortho_scale=scale; look(cam,target); scene.render.filepath=os.path.join(OUT,fn); bpy.ops.render.render(write_still=True)
 cam.location=(9.5,-11.5,8.5); cam.data.ortho_scale=10.4; look(cam,(0,-.1,2.0)); bpy.ops.wm.save_as_mainfile(filepath=blend)
-print('BUILD_COMPLETE_V3')
+print('BUILD_COMPLETE_V4')
