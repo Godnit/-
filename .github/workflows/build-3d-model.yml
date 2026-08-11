@@ -1,0 +1,52 @@
+name: Build 3D Cottage
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Blender and virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa
+          blender --version
+
+      - name: Build model in Blender headless
+        run: |
+          mkdir -p output
+          xvfb-run -a blender --background --python scripts/build_model.py
+
+      - name: Validate model
+        run: |
+          xvfb-run -a blender --background output/model.blend --python scripts/validate_model.py
+          cat output/model_report.txt
+
+      - name: Verify required files
+        run: |
+          test -s output/model.blend
+          test -s output/model.glb
+          test -s output/preview_front.png
+          test -s output/preview_back.png
+          test -s output/preview_left.png
+          test -s output/preview_right.png
+          test -s output/preview_top.png
+          test -s output/preview_perspective.png
+          test -s output/model_report.txt
+          ls -lh output/
+
+      - name: Upload 3D model artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-cottage-3d
+          path: output/
+          if-no-files-found: error
+          compression-level: 6
