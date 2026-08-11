@@ -6,7 +6,8 @@ ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__),'..'))
 OUT=os.path.join(ROOT,'output')
 REPORT=os.path.join(OUT,'model_report.txt')
 
-mesh_objects=[o for o in bpy.context.scene.objects if o.type=='MESH' and o.name!='Backdrop_Floor']
+# Exclude the render-only backdrop from model statistics.
+mesh_objects=[o for o in bpy.context.scene.objects if o.type=='MESH' and o.name not in {'Backdrop','Backdrop_Floor'}]
 verts=edges=faces=tris=0
 nonmanifold_total=0
 loose_total=0
@@ -63,8 +64,7 @@ if issues:
 with open(REPORT,'w',encoding='utf-8') as f: f.write('\n'.join(lines))
 print('\n'.join(lines))
 
-fatal = (loose_total>0 or degenerate_total>0 or not os.path.exists(glb) or os.path.getsize(glb)<1000 or not previews_ok)
-# Non-manifold is reported but not fatal because adjacent decorative solids can include intentionally non-manifold custom picket tips.
+fatal=(nonmanifold_total>0 or loose_total>0 or degenerate_total>0 or not os.path.exists(glb) or os.path.getsize(glb)<1000 or not previews_ok)
 if fatal:
     raise SystemExit('VALIDATION_FAILED')
 print('VALIDATION_OK')
