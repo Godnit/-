@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'scripts/build_farmer2.py'
+      - 'scripts/build_farmer2_fixed.py'
       - '.github/workflows/build-farmer2.yml'
   workflow_dispatch:
 
@@ -26,7 +27,7 @@ jobs:
       - name: Build Farmer 2 map in Blender headless
         run: |
           mkdir -p output_farmer2
-          xvfb-run -a blender --background --python scripts/build_farmer2.py
+          xvfb-run -a blender --background --python scripts/build_farmer2_fixed.py
 
       - name: Verify Blender outputs
         run: |
