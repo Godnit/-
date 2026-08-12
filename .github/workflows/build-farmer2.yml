@@ -1,0 +1,51 @@
+name: Build Farmer 2 Map
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/build_farmer2.py'
+      - '.github/workflows/build-farmer2.yml'
+  workflow_dispatch:
+
+jobs:
+  build-farmer2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Blender and virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa
+          blender --version
+
+      - name: Build Farmer 2 map in Blender headless
+        run: |
+          mkdir -p output_farmer2
+          xvfb-run -a blender --background --python scripts/build_farmer2.py
+
+      - name: Verify Blender outputs
+        run: |
+          test -s output_farmer2/farmer2.blend
+          test -s output_farmer2/farmer2.glb
+          test -s output_farmer2/preview_perspective.png
+          test -s output_farmer2/preview_top.png
+          test -s output_farmer2/preview_front.png
+          test -s output_farmer2/preview_back.png
+          test -s output_farmer2/preview_left.png
+          test -s output_farmer2/preview_right.png
+          test -s output_farmer2/farmer2_report.txt
+          cat output_farmer2/farmer2_report.txt
+          ls -lh output_farmer2/
+
+      - name: Upload Farmer 2 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: farmer2-map-3d
+          path: output_farmer2/
+          if-no-files-found: error
+          compression-level: 6
