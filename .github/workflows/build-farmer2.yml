@@ -29,24 +29,40 @@ jobs:
           mkdir -p output_farmer2
           xvfb-run -a blender --background --python scripts/build_farmer2_fixed.py
 
+      - name: Diagnose outputs
+        if: always()
+        run: |
+          echo "=== output_farmer2 files ==="
+          find output_farmer2 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort || true
+
       - name: Verify Blender outputs
         run: |
-          test -s output_farmer2/farmer2.blend
-          test -s output_farmer2/farmer2.glb
-          test -s output_farmer2/preview_perspective.png
-          test -s output_farmer2/preview_top.png
-          test -s output_farmer2/preview_front.png
-          test -s output_farmer2/preview_back.png
-          test -s output_farmer2/preview_left.png
-          test -s output_farmer2/preview_right.png
-          test -s output_farmer2/farmer2_report.txt
-          cat output_farmer2/farmer2_report.txt
-          ls -lh output_farmer2/
+          required=(
+            farmer2.blend farmer2.glb
+            preview_perspective.png preview_top.png
+            preview_front.png preview_back.png
+            preview_left.png preview_right.png
+            farmer2_report.txt
+          )
+          fail=0
+          for f in "${required[@]}"; do
+            if [ -s "output_farmer2/$f" ]; then
+              echo "OK $f"
+            else
+              echo "MISSING $f"
+              fail=1
+            fi
+          done
+          if [ -f output_farmer2/farmer2_report.txt ]; then
+            cat output_farmer2/farmer2_report.txt
+          fi
+          exit "$fail"
 
       - name: Upload Farmer 2 artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: farmer2-map-3d
           path: output_farmer2/
-          if-no-files-found: error
+          if-no-files-found: warn
           compression-level: 6
