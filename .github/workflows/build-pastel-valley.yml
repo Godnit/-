@@ -1,0 +1,46 @@
+name: Build Pastel Valley 3D
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/build_pastel_valley.py'
+      - '.github/workflows/build-pastel-valley.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa
+          blender --version
+
+      - name: Build and render scene
+        run: |
+          mkdir -p output_pastel_valley
+          xvfb-run -a blender --background --python scripts/build_pastel_valley.py
+
+      - name: Verify outputs
+        run: |
+          set -e
+          for f in pastel_valley.blend pastel_valley.glb preview_main.png preview_left.png preview_right.png preview_high.png report.txt; do
+            test -s "output_pastel_valley/$f"
+            echo "OK $f"
+          done
+          cat output_pastel_valley/report.txt
+          ls -lh output_pastel_valley/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pastel-valley-3d
+          path: output_pastel_valley/
+          if-no-files-found: error
+          compression-level: 6
