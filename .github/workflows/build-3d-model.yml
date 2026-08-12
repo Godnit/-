@@ -30,9 +30,9 @@ jobs:
         run: |
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python scripts/refine_v11.py
 
-      - name: Apply V12 reference projection matching
+      - name: Apply V13 semantic reference materials
         run: |
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python scripts/project_v12.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python scripts/texture_v13.py
 
       - name: Validate model
         run: |
@@ -55,7 +55,7 @@ jobs:
       - name: Upload 3D model artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: reference-cottage-3d-v12
+          name: reference-cottage-3d-v13
           path: output/
           if-no-files-found: error
           compression-level: 6
