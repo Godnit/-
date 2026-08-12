@@ -19,16 +19,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy
           blender --version
-          python3 -c "import numpy; print('numpy', numpy.__version__)"
 
-      - name: Build baseline model in Blender headless
+      - name: Rebuild cottage from reference
         run: |
+          rm -rf output
           mkdir -p output
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python scripts/build_model.py
-
-      - name: Apply expert reference-matching refinement
-        run: |
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python scripts/expert_refine.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python scripts/rebuild_reference_v10.py
 
       - name: Validate model
         run: |
@@ -51,7 +47,7 @@ jobs:
       - name: Upload 3D model artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: reference-cottage-3d
+          name: reference-cottage-3d-v10
           path: output/
           if-no-files-found: error
           compression-level: 6
