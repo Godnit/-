@@ -51,16 +51,16 @@ remove_prefixes(['Shingle_Main','Shingle_Gable','DormerTile_','PorchFTile_','Por
 
 if not os.path.exists(REF):raise RuntimeError('reference missing')
 src=bpy.data.images.load(REF,check_existing=True)
-roof_crop=crop_image(src,'Roof_Reference_Crop',.28,.64,.56,.90)
+roof_crop=crop_image(src,'Roof_Reference_Crop',.46,.68,.58,.79)
 
 roofmat=bpy.data.materials.get('Roof_Photo_Shingles') or bpy.data.materials.new('Roof_Photo_Shingles')
 roofmat.use_nodes=True
 n=roofmat.node_tree.nodes;l=roofmat.node_tree.links;n.clear()
 out=n.new('ShaderNodeOutputMaterial');bs=n.new('ShaderNodeBsdfPrincipled');tex=n.new('ShaderNodeTexImage');tex.image=roof_crop;tex.extension='REPEAT';tex.interpolation='Linear'
-tc=n.new('ShaderNodeTexCoord');mp=n.new('ShaderNodeMapping');mp.inputs['Scale'].default_value=(2.1,2.1,2.1)
+tc=n.new('ShaderNodeTexCoord');mp=n.new('ShaderNodeMapping');mp.inputs['Scale'].default_value=(1.55,1.55,1.55)
 l.new(tc.outputs['Generated'],mp.inputs['Vector']);l.new(mp.outputs['Vector'],tex.inputs['Vector']);l.new(tex.outputs['Color'],bs.inputs['Base Color'])
 if 'Roughness' in bs.inputs:bs.inputs['Roughness'].default_value=.62
-rgb=n.new('ShaderNodeRGBToBW');bump=n.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.18;bump.inputs['Distance'].default_value=.055
+rgb=n.new('ShaderNodeRGBToBW');bump=n.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.11;bump.inputs['Distance'].default_value=.035
 l.new(tex.outputs['Color'],rgb.inputs['Color']);l.new(rgb.outputs['Val'],bump.inputs['Height']);l.new(bump.outputs['Normal'],bs.inputs['Normal']);l.new(bs.outputs['BSDF'],out.inputs['Surface'])
 for o in scene.objects:
     if o.type=='MESH' and (o.name.startswith('Roof_Main_') or o.name.startswith('Roof_FrontGable_') or o.name.startswith('Dormer_Roof_') or o.name.startswith('PorchRoof_')):
@@ -113,4 +113,4 @@ for o in scene.objects:
     if o.type=='MESH' and o.name!='Backdrop':o.select_set(True)
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,'model.glb'),export_format='GLB',use_selection=True,export_apply=True)
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT,'model.blend'))
-print('REFERENCE_TEXTURE_V13_COMPLETE')
+print('REFERENCE_TEXTURE_V14_COMPLETE')
