@@ -7,6 +7,7 @@ on:
       - 'scripts/build_reference_valley_v2.py'
       - 'scripts/build_reference_valley_v5.py'
       - 'scripts/build_reference_valley_v6.py'
+      - 'scripts/build_reference_valley_v7.py'
       - '.github/workflows/build-pastel-valley.yml'
   workflow_dispatch:
 
@@ -26,29 +27,29 @@ jobs:
 
       - name: Build and render corrected 3D scene
         run: |
-          mkdir -p output_reference_valley_v6
-          xvfb-run -a blender --background --python scripts/build_reference_valley_v6.py
+          mkdir -p output_reference_valley_v7
+          xvfb-run -a blender --background --python scripts/build_reference_valley_v7.py
 
       - name: Verify outputs
         run: |
-          required=(reference_valley_v6.blend preview_main.png preview_closer.png report.txt)
+          required=(reference_valley_v7.blend preview_main.png preview_closer.png report.txt)
           failed=0
           for f in "${required[@]}"; do
-            if [ -s "output_reference_valley_v6/$f" ]; then
+            if [ -s "output_reference_valley_v7/$f" ]; then
               echo "OK $f"
             else
               echo "MISSING $f"
               failed=1
             fi
           done
-          [ -f output_reference_valley_v6/report.txt ] && cat output_reference_valley_v6/report.txt || true
+          [ -f output_reference_valley_v7/report.txt ] && cat output_reference_valley_v7/report.txt || true
           exit "$failed"
 
       - name: Upload artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reference-valley-v6-3d
-          path: output_reference_valley_v6/
+          name: reference-valley-v7-3d
+          path: output_reference_valley_v7/
           if-no-files-found: warn
           compression-level: 6
