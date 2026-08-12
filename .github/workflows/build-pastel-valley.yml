@@ -27,20 +27,32 @@ jobs:
           mkdir -p output_pastel_valley
           xvfb-run -a blender --background --python scripts/build_pastel_valley.py
 
+      - name: Diagnose outputs
+        if: always()
+        run: |
+          echo "=== output_pastel_valley files ==="
+          find output_pastel_valley -maxdepth 1 -type f -printf '%f %s bytes\n' | sort || true
+
       - name: Verify outputs
         run: |
-          set -e
-          for f in pastel_valley.blend pastel_valley.glb preview_main.png preview_left.png preview_right.png preview_high.png report.txt; do
-            test -s "output_pastel_valley/$f"
-            echo "OK $f"
+          required=(pastel_valley.blend pastel_valley.glb preview_main.png preview_left.png preview_right.png preview_high.png report.txt)
+          failed=0
+          for f in "${required[@]}"; do
+            if [ -s "output_pastel_valley/$f" ]; then
+              echo "OK $f"
+            else
+              echo "MISSING $f"
+              failed=1
+            fi
           done
-          cat output_pastel_valley/report.txt
-          ls -lh output_pastel_valley/
+          [ -f output_pastel_valley/report.txt ] && cat output_pastel_valley/report.txt || true
+          exit "$failed"
 
       - name: Upload artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pastel-valley-3d
           path: output_pastel_valley/
-          if-no-files-found: error
+          if-no-files-found: warn
           compression-level: 6
