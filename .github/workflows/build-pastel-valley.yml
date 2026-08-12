@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'scripts/build_pastel_valley.py'
+      - 'scripts/build_reference_valley_v2.py'
       - '.github/workflows/build-pastel-valley.yml'
   workflow_dispatch:
 
@@ -22,37 +22,31 @@ jobs:
           sudo apt-get install -y blender xvfb libgl1 libglu1-mesa
           blender --version
 
-      - name: Build and render scene
+      - name: Build and render reference-matched 3D scene
         run: |
-          mkdir -p output_pastel_valley
-          xvfb-run -a blender --background --python scripts/build_pastel_valley.py
-
-      - name: Diagnose outputs
-        if: always()
-        run: |
-          echo "=== output_pastel_valley files ==="
-          find output_pastel_valley -maxdepth 1 -type f -printf '%f %s bytes\n' | sort || true
+          mkdir -p output_reference_valley_v2
+          xvfb-run -a blender --background --python scripts/build_reference_valley_v2.py
 
       - name: Verify outputs
         run: |
-          required=(pastel_valley.blend pastel_valley.glb preview_main.png preview_left.png preview_right.png preview_high.png report.txt)
+          required=(reference_valley_v2.blend reference_valley_v2.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png report.txt)
           failed=0
           for f in "${required[@]}"; do
-            if [ -s "output_pastel_valley/$f" ]; then
+            if [ -s "output_reference_valley_v2/$f" ]; then
               echo "OK $f"
             else
               echo "MISSING $f"
               failed=1
             fi
           done
-          [ -f output_pastel_valley/report.txt ] && cat output_pastel_valley/report.txt || true
+          [ -f output_reference_valley_v2/report.txt ] && cat output_reference_valley_v2/report.txt || true
           exit "$failed"
 
       - name: Upload artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pastel-valley-3d
-          path: output_pastel_valley/
+          name: reference-valley-v2-3d
+          path: output_reference_valley_v2/
           if-no-files-found: warn
           compression-level: 6
