@@ -17,7 +17,7 @@ def set_base(m,c,rough=None):
         p.inputs['Base Color'].default_value=(*c,1)
         if rough is not None:p.inputs['Roughness'].default_value=rough
 # Reference-measured palette (linearized/visually compensated for studio light)
-set_base(W,(0.86,0.73,0.53),.82); set_base(T,(0.97,0.95,0.88),.74)
+set_base(W,(0.92,0.80,0.61),.82); set_base(T,(0.97,0.95,0.88),.74)
 set_base(RB,(0.025,0.087,0.212),.66); set_base(RT,(0.032,0.110,0.275),.64)
 set_base(WD,(0.33,0.13,0.035),.72); set_base(WL,(0.57,0.26,0.065),.70)
 set_base(BR,(0.64,0.31,0.095),.80); set_base(BL,(0.83,0.50,0.19),.80)
@@ -69,10 +69,24 @@ remove_prefixes(['RoofMain','TileMain','RoofCross','TileCross','Dormer','TileCro
 xc=-.18;xd=4.72;yr=.48;yF=-2.10;yB=2.40;zE=3.30;zR=5.24
 slope_y('Expert_Main_F',yF,yr,xc,xd,zE,zR,RB); slope_y('Expert_Main_B',yB,yr,xc,xd,zE,zR,RB)
 tiles_y('ExpertTileMF',yF,yr,xc,xd,zE,zR,8,12); tiles_y('ExpertTileMB',yB,yr,xc,xd,zE,zR,8,12); box('Expert_Main_Ridge',(xc,yr,zR+.055),(xd+.18,.15,.15),RT,.04)
-xr=-1.15;ycg=-.55;yd=3.75;xL=-2.72;xR=.42;zEg=3.28;zRg=5.20
-slope_x('Expert_Gable_L',xL,xr,ycg,yd,zEg,zRg,RB); slope_x('Expert_Gable_R',xR,xr,ycg,yd,zEg,zRg,RB)
-tiles_x('ExpertTileGL',xL,xr,ycg,yd,zEg,zRg,8,10); tiles_x('ExpertTileGR',xR,xr,ycg,yd,zEg,zRg,8,10); box('Expert_Gable_Ridge',(xr,ycg,zRg+.055),(.15,yd+.18,.15),RT,.04)
-# clean white fascia makes the silhouette read like the reference
+# Cross-gable is CLIPPED at the roof valley instead of using two full rectangular
+# planes.  The previous rectangles continued behind the valley and created the huge
+# triangular sheet seen in V5.
+xr=-1.15; xL=-2.72; xR=.42; zEg=3.28; zRg=5.20; gfront=-2.14
+sm=(zR-zE)/(yr-yF); ridge_valley_y=yF+(zRg-zE)/sm
+def solid_tri(name,pts,mat,th=.075):
+    me=bpy.data.meshes.new(name+'_Mesh'); me.from_pydata(pts,[],[(0,1,2)]); me.update(); o=bpy.data.objects.new(name,me); bpy.context.collection.objects.link(o); assign(o,mat)
+    bpy.context.view_layer.objects.active=o; o.select_set(True); md=o.modifiers.new('Solidify','SOLIDIFY'); md.thickness=th; md.offset=0; bpy.ops.object.modifier_apply(modifier=md.name); o.select_set(False); return o
+solid_tri('Expert_Gable_L',[(xL,gfront,zEg),(xr,gfront,zRg),(xr,ridge_valley_y,zRg)],RB)
+solid_tri('Expert_Gable_R',[(xR,gfront,zEg),(xr,gfront,zRg),(xr,ridge_valley_y,zRg)],RB)
+# Thin shingle row lines follow the clipped triangular roof, avoiding floating tiles.
+def gable_rows(prefix,eave_x):
+    for i,t in enumerate([.13,.25,.37,.49,.61,.73,.85,.95]):
+        x=eave_x+(xr-eave_x)*t; z=zEg+(zRg-zEg)*t; ymax=yF+(z-zE)/sm; L=max(.06,ymax-gfront)
+        box(f'{prefix}_{i}',(x,gfront+L/2,z+.048),(.030,L,.022),RT,.002)
+gable_rows('ExpertGableRowL',xL); gable_rows('ExpertGableRowR',xR)
+# Ridge stops exactly at the valley.
+rlen=ridge_valley_y-gfront; box('Expert_Gable_Ridge',(xr,gfront+rlen/2,zRg+.055),(.15,rlen,.15),RT,.04)
 beam('Expert_Fascia_L',(-2.44,-2.01,3.30),(-1.15,-2.01,5.02),.07,T,.075); beam('Expert_Fascia_R',(-1.15,-2.01,5.02),(.16,-2.01,3.30),.07,T,.075)
 
 # Right dormer: wider, lower and more integrated into the roof.
@@ -106,7 +120,9 @@ def area(n,loc,e,size,target,color):
 area('Expert_Key',(-6.2,-7.0,11.5),820,6.2,(-.2,-.2,2.1),(1.0,.95,.86));area('Expert_Fill',(6.0,1.0,8.0),280,7.0,(0,0,2.1),(.92,.96,1.0));area('Expert_Front',(0,-8.0,6.0),130,8.0,(0,-.4,1.8),(1.0,.98,.94))
 bpy.ops.object.light_add(type='SUN',location=(0,0,9));sun=bpy.context.object;sun.data.energy=.62;sun.data.angle=math.radians(18);sun.rotation_euler=(math.radians(30),math.radians(-16),math.radians(-35))
 back=bpy.data.objects.get('Backdrop');
-if back and back.data.materials:set_base(back.data.materials[0],(0.92,0.89,0.81),.96)
+if back:
+    back.dimensions=(30,30,.14); bpy.context.view_layer.objects.active=back; bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+    if back.data.materials:set_base(back.data.materials[0],(0.92,0.89,0.81),.96)
 cam=scene.camera
 cam.data.type='ORTHO'
 views={'preview_perspective.png':((10,-10,12),(0,-.05,2.0),9.65),'preview_front.png':((0,-14,5.2),(-.3,0,2.2),9.4),'preview_back.png':((0,14,5.2),(-.3,0,2.2),9.4),'preview_left.png':((-14,0,5.2),(0,0,2.2),9.4),'preview_right.png':((14,0,5.2),(0,0,2.2),9.4),'preview_top.png':((0,0,16),(0,0,0),9.6)}
@@ -117,4 +133,4 @@ for o in scene.objects:
     if o.type=='MESH' and o.name!='Backdrop':o.select_set(True)
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,'model.glb'),export_format='GLB',use_selection=True,export_apply=True)
 cam.location=(10,-10,12);cam.data.ortho_scale=9.65;look(cam,(0,-.05,2.0));bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT,'model.blend'))
-print('EXPERT_REFINE_V5_COMPLETE')
+print('EXPERT_REFINE_V6_COMPLETE')
