@@ -65,10 +65,31 @@ def remove_prefixes(prefixes):
 # Delete the old chunky/misproportioned roof and dormer only.
 remove_prefixes(['RoofMain','TileMain','RoofCross','TileCross','Dormer','TileCross','Chimney','PorchRoof','PorchTile','EntryRoof','EntryTile','EntryRidge'])
 
-# Main roof: classic intersecting cross-gable proportions from the reference.
-xMin=-2.54; xMax=1.72; xc=(xMin+xMax)/2; xd=xMax-xMin; yr=.48; yF=-2.10; yB=2.40; zE=3.30; zR=5.24
-slope_y('Expert_Main_F',yF,yr,xc,xd,zE,zR,RB); slope_y('Expert_Main_B',yB,yr,xc,xd,zE,zR,RB)
-tiles_y('ExpertTileMF',yF,yr,xc,xd,zE,zR,8,12); tiles_y('ExpertTileMB',yB,yr,xc,xd,zE,zR,8,12); box('Expert_Main_Ridge',(xc,yr,zR+.055),(xd+.18,.15,.15),RT,.04)
+# Main roof: hipped on the visible right end. The reference does not expose a huge
+# white triangular gable here; the blue roof wraps down around the dormer.
+xMin=-2.55; xMax=2.15; ridgeMin=-2.10; ridgeMax=1.23; yr=.48; yF=-2.10; yB=2.40; zE=3.30; zR=5.24
+def solid_poly(name,pts,mat,th=.075):
+    me=bpy.data.meshes.new(name+'_Mesh'); me.from_pydata(pts,[],[tuple(range(len(pts)))]); me.update(); o=bpy.data.objects.new(name,me); bpy.context.collection.objects.link(o); assign(o,mat)
+    bpy.context.view_layer.objects.active=o; o.select_set(True); md=o.modifiers.new('Solidify','SOLIDIFY'); md.thickness=th; md.offset=0; bpy.ops.object.modifier_apply(modifier=md.name); o.select_set(False); return o
+solid_poly('Expert_Main_F',[(xMin,yF,zE),(xMax,yF,zE),(ridgeMax,yr,zR),(ridgeMin,yr,zR)],RB)
+solid_poly('Expert_Main_B',[(xMin,yB,zE),(ridgeMin,yr,zR),(ridgeMax,yr,zR),(xMax,yB,zE)],RB)
+solid_poly('Expert_Main_Hip_R',[(xMax,yF,zE),(xMax,yB,zE),(ridgeMax,yr,zR)],RB)
+solid_poly('Expert_Main_Hip_L',[(xMin,yB,zE),(xMin,yF,zE),(ridgeMin,yr,zR)],RB)
+box('Expert_Main_Ridge',((ridgeMin+ridgeMax)/2,yr,zR+.055),(ridgeMax-ridgeMin+.16,.15,.15),RT,.04)
+# Trapezoid-clipped shingle tiles on the two large roof slopes.
+def main_slope_tiles(prefix,front=True,rows=8,cols=12):
+    y0=yF if front else yB; d=Vector((0,yr-y0,zR-zE)); L=d.length; u=d.normalized(); a=math.atan2(d.z,d.y)
+    for r in range(rows):
+        t=(r+.48)/rows; p=Vector((0,y0,zE))+u*(t*L); xl=xMin+(ridgeMin-xMin)*t; xr_=xMax+(ridgeMax-xMax)*t; span=xr_-xl; cw=span/cols*.92; rl=L/rows*.91
+        for c in range(cols):
+            st=(.46*span/cols if r%2 else 0); x=xl+(c+.5)*span/cols+st
+            if x>xr_-cw*.2: continue
+            box(f'{prefix}_{r}_{c}',(x,p.y,p.z+.04),(cw,rl,.022),RT,.002,(a,0,0))
+main_slope_tiles('ExpertTileMF',True); main_slope_tiles('ExpertTileMB',False)
+# Raised shingle rows on the visible right hip.
+for i,t in enumerate([.14,.27,.40,.53,.66,.79,.90]):
+    x=xMax+(ridgeMax-xMax)*t; z=zE+(zR-zE)*t; ya=yF+(yr-yF)*t; yb=yB+(yr-yB)*t; L=yb-ya
+    box(f'ExpertHipRow_{i}',(x,(ya+yb)/2,z+.045),(.030,L,.022),RT,.002)
 # Cross-gable is CLIPPED at the roof valley instead of using two full rectangular
 # planes. The previous rectangles continued behind the valley and created the huge
 # triangular sheet seen in V5.
@@ -111,7 +132,7 @@ slope_x('Expert_Entry_L',-.08,.52,-2.38,1.18,2.69,3.14,RB); slope_x('Expert_Entr
 # Bring the left tree forward so it is visible beside the facade like the source image.
 for o in scene.objects:
     if o.name.startswith('TreeLeft'):
-        o.location.y -= 0.72
+        o.location.y -= 1.35
 # Lower front window has narrow brown side trim in the reference, not heavy shutters.
 for nm in ('WinLower_SL','WinLower_SR'):
     o=bpy.data.objects.get(nm)
@@ -130,7 +151,7 @@ except:pass
 
 def area(n,loc,e,size,target,color):
     bpy.ops.object.light_add(type='AREA',location=loc);L=bpy.context.object;L.name=n;L.data.energy=e;L.data.shape='DISK';L.data.size=size;L.data.color=color;look(L,target)
-area('Expert_Key',(-6.2,-7.0,11.5),820,6.2,(-.2,-.2,2.1),(1.0,.95,.86));area('Expert_Fill',(6.0,0.0,8.5),420,7.5,(0,0,2.2),(.92,.96,1.0));area('Expert_Front',(0,-8.0,6.0),180,8.0,(0,-.4,1.8),(1.0,.98,.94))
+area('Expert_Key',(-6.2,-7.0,11.5),820,6.2,(-.2,-.2,2.1),(1.0,.95,.86));area('Expert_Fill',(6.0,0.0,8.5),420,7.5,(0,0,2.2),(.92,.96,1.0));area('Expert_CameraFill',(7.5,-8.0,9.5),260,8.5,(0,-.2,2.3),(.96,.98,1.0));area('Expert_Front',(0,-8.0,6.0),160,8.0,(0,-.4,1.8),(1.0,.98,.94))
 bpy.ops.object.light_add(type='SUN',location=(0,0,9));sun=bpy.context.object;sun.data.energy=.62;sun.data.angle=math.radians(18);sun.rotation_euler=(math.radians(30),math.radians(-16),math.radians(-35))
 back=bpy.data.objects.get('Backdrop');
 if back:
@@ -146,4 +167,4 @@ for o in scene.objects:
     if o.type=='MESH' and o.name!='Backdrop':o.select_set(True)
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,'model.glb'),export_format='GLB',use_selection=True,export_apply=True)
 cam.location=(10,-10,12);cam.data.ortho_scale=9.65;look(cam,(0,-.05,2.0));bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT,'model.blend'))
-print('EXPERT_REFINE_V7_COMPLETE')
+print('EXPERT_REFINE_V8_COMPLETE')
