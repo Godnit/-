@@ -17,11 +17,11 @@ def set_base(m,c,rough=None):
         p.inputs['Base Color'].default_value=(*c,1)
         if rough is not None:p.inputs['Roughness'].default_value=rough
 # Reference-measured palette (linearized/visually compensated for studio light)
-set_base(W,(0.92,0.80,0.61),.82); set_base(T,(0.97,0.95,0.88),.74)
-set_base(RB,(0.025,0.087,0.212),.66); set_base(RT,(0.032,0.110,0.275),.64)
+set_base(W,(0.945,0.89,0.80),.82); set_base(T,(0.985,0.975,0.94),.74)
+set_base(RB,(0.032,0.115,0.285),.66); set_base(RT,(0.040,0.145,0.345),.64)
 set_base(WD,(0.33,0.13,0.035),.72); set_base(WL,(0.57,0.26,0.065),.70)
 set_base(BR,(0.64,0.31,0.095),.80); set_base(BL,(0.83,0.50,0.19),.80)
-set_base(BG,(0.92,0.89,0.81),.96)
+set_base(BG,(0.985,0.955,0.885),.96)
 
 def assign(o,m):
     o.data.materials.clear(); o.data.materials.append(m)
@@ -66,11 +66,11 @@ def remove_prefixes(prefixes):
 remove_prefixes(['RoofMain','TileMain','RoofCross','TileCross','Dormer','TileCross','Chimney','PorchRoof','PorchTile','EntryRoof','EntryTile','EntryRidge'])
 
 # Main roof: classic intersecting cross-gable proportions from the reference.
-xc=-.18;xd=4.72;yr=.48;yF=-2.10;yB=2.40;zE=3.30;zR=5.24
+xMin=-2.54; xMax=1.72; xc=(xMin+xMax)/2; xd=xMax-xMin; yr=.48; yF=-2.10; yB=2.40; zE=3.30; zR=5.24
 slope_y('Expert_Main_F',yF,yr,xc,xd,zE,zR,RB); slope_y('Expert_Main_B',yB,yr,xc,xd,zE,zR,RB)
 tiles_y('ExpertTileMF',yF,yr,xc,xd,zE,zR,8,12); tiles_y('ExpertTileMB',yB,yr,xc,xd,zE,zR,8,12); box('Expert_Main_Ridge',(xc,yr,zR+.055),(xd+.18,.15,.15),RT,.04)
 # Cross-gable is CLIPPED at the roof valley instead of using two full rectangular
-# planes.  The previous rectangles continued behind the valley and created the huge
+# planes. The previous rectangles continued behind the valley and created the huge
 # triangular sheet seen in V5.
 xr=-1.15; xL=-2.72; xR=.42; zEg=3.28; zRg=5.20; gfront=-2.14
 sm=(zR-zE)/(yr-yF); ridge_valley_y=yF+(zRg-zE)/sm
@@ -107,22 +107,35 @@ slope_y('Expert_Porch_F',-3.02,-1.73,1.53,3.28,2.58,3.14,RB); tiles_y('ExpertPor
 slope_x('Expert_Porch_S',3.30,1.70,-.30,3.58,2.62,3.14,RB); tiles_x('ExpertPorchTS',3.30,1.70,-.30,3.58,2.62,3.14,5,10)
 slope_x('Expert_Entry_L',-.08,.52,-2.38,1.18,2.69,3.14,RB); slope_x('Expert_Entry_R',1.12,.52,-2.38,1.18,2.69,3.14,RB); tiles_x('ExpertEntryTL',-.08,.52,-2.38,1.18,2.69,3.14,3,4); tiles_x('ExpertEntryTR',1.12,.52,-2.38,1.18,2.69,3.14,3,4); box('Expert_Entry_Ridge',(.52,-2.38,3.19),(.14,1.28,.14),RT,.03)
 
+# Reference-layout corrections preserved from the baseline.
+# Bring the left tree forward so it is visible beside the facade like the source image.
+for o in scene.objects:
+    if o.name.startswith('TreeLeft'):
+        o.location.y -= 0.72
+# Lower front window has narrow brown side trim in the reference, not heavy shutters.
+for nm in ('WinLower_SL','WinLower_SR'):
+    o=bpy.data.objects.get(nm)
+    if o:
+        o.dimensions.x=.13; bpy.context.view_layer.objects.active=o; bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+# Slightly calm the grass saturation under the brighter studio setup.
+set_base(bpy.data.materials.get('Grass'),(0.25,0.50,0.055),.90)
+
 # Exact isometric camera matching the reference ground axes (+29/-33 deg).
 def look(o,t):o.rotation_euler=(Vector(t)-o.location).to_track_quat('-Z','Y').to_euler()
 for o in list(scene.objects):
     if o.type=='LIGHT':bpy.data.objects.remove(o,do_unlink=True)
-scene.world.use_nodes=True;bg=scene.world.node_tree.nodes.get('Background');bg.inputs['Color'].default_value=(0.965,0.945,0.885,1);bg.inputs['Strength'].default_value=.34
+scene.world.use_nodes=True;bg=scene.world.node_tree.nodes.get('Background');bg.inputs['Color'].default_value=(0.985,0.965,0.915,1);bg.inputs['Strength'].default_value=.40
 try:scene.view_settings.view_transform='Standard';scene.view_settings.look='Medium High Contrast';scene.view_settings.exposure=0.0;scene.view_settings.gamma=1.0
 except:pass
 
 def area(n,loc,e,size,target,color):
     bpy.ops.object.light_add(type='AREA',location=loc);L=bpy.context.object;L.name=n;L.data.energy=e;L.data.shape='DISK';L.data.size=size;L.data.color=color;look(L,target)
-area('Expert_Key',(-6.2,-7.0,11.5),820,6.2,(-.2,-.2,2.1),(1.0,.95,.86));area('Expert_Fill',(6.0,1.0,8.0),280,7.0,(0,0,2.1),(.92,.96,1.0));area('Expert_Front',(0,-8.0,6.0),130,8.0,(0,-.4,1.8),(1.0,.98,.94))
+area('Expert_Key',(-6.2,-7.0,11.5),820,6.2,(-.2,-.2,2.1),(1.0,.95,.86));area('Expert_Fill',(6.0,0.0,8.5),420,7.5,(0,0,2.2),(.92,.96,1.0));area('Expert_Front',(0,-8.0,6.0),180,8.0,(0,-.4,1.8),(1.0,.98,.94))
 bpy.ops.object.light_add(type='SUN',location=(0,0,9));sun=bpy.context.object;sun.data.energy=.62;sun.data.angle=math.radians(18);sun.rotation_euler=(math.radians(30),math.radians(-16),math.radians(-35))
 back=bpy.data.objects.get('Backdrop');
 if back:
     back.dimensions=(30,30,.14); bpy.context.view_layer.objects.active=back; bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
-    if back.data.materials:set_base(back.data.materials[0],(0.92,0.89,0.81),.96)
+    if back.data.materials:set_base(back.data.materials[0],(0.985,0.955,0.885),.96)
 cam=scene.camera
 cam.data.type='ORTHO'
 views={'preview_perspective.png':((10,-10,12),(0,-.05,2.0),9.65),'preview_front.png':((0,-14,5.2),(-.3,0,2.2),9.4),'preview_back.png':((0,14,5.2),(-.3,0,2.2),9.4),'preview_left.png':((-14,0,5.2),(0,0,2.2),9.4),'preview_right.png':((14,0,5.2),(0,0,2.2),9.4),'preview_top.png':((0,0,16),(0,0,0),9.6)}
@@ -133,4 +146,4 @@ for o in scene.objects:
     if o.type=='MESH' and o.name!='Backdrop':o.select_set(True)
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,'model.glb'),export_format='GLB',use_selection=True,export_apply=True)
 cam.location=(10,-10,12);cam.data.ortho_scale=9.65;look(cam,(0,-.05,2.0));bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT,'model.blend'))
-print('EXPERT_REFINE_V6_COMPLETE')
+print('EXPERT_REFINE_V7_COMPLETE')
