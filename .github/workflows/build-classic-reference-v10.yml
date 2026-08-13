@@ -1,0 +1,59 @@
+name: Build Classic Reference V10
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/build_classic_reference_v10.py'
+      - '.github/workflows/build-classic-reference-v10.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa
+          blender --version
+
+      - name: Build and render 3D reference scene
+        run: |
+          mkdir -p output_classic_reference_v10
+          xvfb-run -a blender --background --python scripts/build_classic_reference_v10.py
+
+      - name: Verify outputs
+        run: |
+          required=(
+            classic_reference_v10.blend
+            preview_main.png preview_closer.png
+            preview_left.png preview_right.png preview_high.png
+            report.txt
+          )
+          failed=0
+          for f in "${required[@]}"; do
+            if [ -s "output_classic_reference_v10/$f" ]; then
+              echo "OK $f"
+            else
+              echo "MISSING $f"
+              failed=1
+            fi
+          done
+          cat output_classic_reference_v10/report.txt || true
+          find output_classic_reference_v10 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          exit "$failed"
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-reference-v10-3d
+          path: output_classic_reference_v10/
+          if-no-files-found: warn
+          compression-level: 6
