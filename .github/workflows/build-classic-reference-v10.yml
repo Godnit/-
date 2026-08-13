@@ -1,4 +1,4 @@
-name: Camera Test V36
+name: Build Classic Reference V37
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - 'scripts/build_classic_reference_v26.py'
       - 'scripts/build_classic_reference_v27.py'
       - 'scripts/postprocess_classic_v35.py'
-      - 'scripts/camera_test_v36.py'
+      - 'scripts/finalize_classic_v37.py'
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
@@ -24,20 +24,23 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy
-      - name: Build V35 reference scene
+      - name: Build map-only base and V35 mountains
         run: |
-          rm -rf output_classic_reference_v27 output_classic_reference_v35 output_camera_v36
+          rm -rf output_classic_reference_v27 output_classic_reference_v35 output_classic_reference_v37
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v27.py
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v27/classic_reference_v27.blend --python-exit-code 1 --python scripts/postprocess_classic_v35.py
-      - name: Render four camera candidates
+      - name: Finalize V37
         run: |
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v35/classic_reference_v35.blend --python-exit-code 1 --python scripts/camera_test_v36.py
-          for f in A B C D; do test -s "output_camera_v36/candidate_$f.png" || exit 1; done
-          cat output_camera_v36/report.txt
-      - name: Upload camera test
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v35/classic_reference_v35.blend --python-exit-code 1 --python scripts/finalize_classic_v37.py
+      - name: Verify outputs
+        run: |
+          for f in classic_reference_v37.blend classic_reference_v37.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png report.txt; do test -s "output_classic_reference_v37/$f" || exit 1; done
+          cat output_classic_reference_v37/report.txt
+          ls -lh output_classic_reference_v37/
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: camera-test-v36
-          path: output_camera_v36/
+          name: classic-reference-v37-map-only
+          path: output_classic_reference_v37/
           if-no-files-found: error
           compression-level: 6
