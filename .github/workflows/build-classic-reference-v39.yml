@@ -1,0 +1,50 @@
+name: Build Classic Reference V39
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/build_classic_reference_v16.py'
+      - 'scripts/build_classic_reference_v24.py'
+      - 'scripts/build_classic_reference_v26.py'
+      - 'scripts/build_classic_reference_v27.py'
+      - 'scripts/postprocess_classic_v32.py'
+      - 'scripts/restore_trees_v38.py'
+      - 'scripts/make_island_v39.py'
+      - '.github/workflows/build-classic-reference-v39.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa imagemagick python3-numpy
+          blender --version
+      - name: Build V38 accepted scene
+        run: |
+          rm -rf output_classic_reference_v27 output_classic_reference_v32 output_classic_reference_v38 output_classic_reference_v39
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v27.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v27/classic_reference_v27.blend --python-exit-code 1 --python scripts/postprocess_classic_v32.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v32/classic_reference_v32.blend --python-exit-code 1 --python scripts/restore_trees_v38.py
+      - name: Make rounded floating island V39
+        run: |
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v38/classic_reference_v38.blend --python-exit-code 1 --python scripts/make_island_v39.py
+          convert output_classic_reference_v39/preview_main.png -resize 360x203 -quality 66 output_classic_reference_v39/preview_thumb.jpg
+      - name: Verify outputs
+        run: |
+          for f in classic_reference_v39.blend classic_reference_v39.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png preview_thumb.jpg report.txt; do test -s "output_classic_reference_v39/$f" || exit 1; done
+          cat output_classic_reference_v39/report.txt
+          ls -lh output_classic_reference_v39/
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-reference-v39-floating-island
+          path: output_classic_reference_v39/
+          if-no-files-found: error
+          compression-level: 6
