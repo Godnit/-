@@ -32,12 +32,18 @@ repls = [
     ("render('preview_left.png',(-50,-86,42),(-2,39,4.0),52)", "render('preview_left.png',(-52,-91,44),(-2,52,4.2),53)"),
     ("render('preview_right.png',(50,-86,42),(1,39,4.0),52)", "render('preview_right.png',(52,-91,44),(1,52,4.2),53)"),
     ("render('preview_high.png',(0,-75,75),(0,32,0.5),52)", "render('preview_high.png',(0,-80,78),(0,45,0.7),53)"),
-    ("cam.location=(0,-112,47);cam.data.lens=48;look_at(cam,(0,37,4.5))", "cam.location=(0,-116,49);cam.data.lens=50;look_at(cam,(0,47,4.8))"),
 ]
 for old,new in repls:
     if old not in src:
         raise RuntimeError('v11 expected fragment missing: '+old[:120])
     src = src.replace(old,new)
+
+# The global look_at replacement above already changes the target on the saved-camera line.
+final_cam_old="cam.location=(0,-112,47);cam.data.lens=48;look_at(cam,(0,47,4.8))"
+final_cam_new="cam.location=(0,-116,49);cam.data.lens=50;look_at(cam,(0,47,4.8))"
+if final_cam_old not in src:
+    raise RuntimeError('v11 final camera marker missing')
+src = src.replace(final_cam_old,final_cam_new)
 
 # Make all pines visibly larger in the near/mid field, matching the supplied screenshot scale.
 needle = "def add_pine(x,y,s,var):\n    add_cylinder"
@@ -60,6 +66,11 @@ src = src.replace("[(-150,183,60,35,32),(-88,188,60,36,29),(83,188,62,36,31),(14
 # Make the path thinner/subtler like the reference.
 src = src.replace("1.25,.06,M['path']", ".90,.06,M['path']")
 src = src.replace(".72,.065,M['path']", ".58,.065,M['path']")
+
+# Move the church clearing and graveyard with the church so the distant cluster stays coherent.
+src = src.replace("((x+6)/17.0)**2+((y-57)/10.0)**2", "((x+6)/17.0)**2+((y-82)/10.0)**2")
+src = src.replace("abs(x)<27 and y<58", "abs(x)<27 and y<84")
+src = src.replace("[(-12,53),(-10,55),(-13,57),(-11,59),(-15,55),(-16,58),(-9,51),(-14,51)]", "[(-12,78),(-10,80),(-13,82),(-11,84),(-15,80),(-16,83),(-9,76),(-14,76)]")
 
 ns={'__file__':str(src_path),'__name__':'__main__'}
 exec(compile(src,str(src_path),'exec'),ns,ns)
