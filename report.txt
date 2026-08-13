@@ -1,0 +1,4 @@
+TABS Classic reference v17
+Pine count: 985
+Field: 218 x 252 Blender units
+Mesh objects: 86
