@@ -1,4 +1,4 @@
-name: Build Classic Reference V27
+name: Build Classic Reference V28
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - 'scripts/build_classic_reference_v24.py'
       - 'scripts/build_classic_reference_v26.py'
       - 'scripts/build_classic_reference_v27.py'
+      - 'scripts/build_classic_reference_v28.py'
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
@@ -25,25 +26,25 @@ jobs:
           sudo apt-get install -y blender xvfb libgl1 libglu1-mesa imagemagick python3-numpy
           blender --version
 
-      - name: Build V27 map-only scene
+      - name: Build V28 map-only scene
         run: |
-          rm -rf output_classic_reference_v27
-          mkdir -p output_classic_reference_v27
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v27.py
-          convert output_classic_reference_v27/preview_main.png -resize 320x180 -quality 62 output_classic_reference_v27/preview_thumb.jpg
+          rm -rf output_classic_reference_v28
+          mkdir -p output_classic_reference_v28
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v28.py
+          convert output_classic_reference_v28/preview_main.png -resize 320x180 -quality 62 output_classic_reference_v28/preview_thumb.jpg
 
       - name: Verify outputs
         run: |
-          for f in classic_reference_v27.blend classic_reference_v27.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png preview_thumb.jpg report.txt; do
-            test -s "output_classic_reference_v27/$f" || exit 1
+          for f in classic_reference_v28.blend classic_reference_v28.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png preview_thumb.jpg report.txt; do
+            test -s "output_classic_reference_v28/$f" || exit 1
           done
-          cat output_classic_reference_v27/report.txt
-          ls -lh output_classic_reference_v27/
+          cat output_classic_reference_v28/report.txt
+          ls -lh output_classic_reference_v28/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: classic-reference-v27-map-only
-          path: output_classic_reference_v27/
+          name: classic-reference-v28-map-only
+          path: output_classic_reference_v28/
           if-no-files-found: error
           compression-level: 6
