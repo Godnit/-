@@ -1,0 +1,50 @@
+name: Build Classic Reference V38
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/build_classic_reference_v16.py'
+      - 'scripts/build_classic_reference_v24.py'
+      - 'scripts/build_classic_reference_v26.py'
+      - 'scripts/build_classic_reference_v27.py'
+      - 'scripts/postprocess_classic_v32.py'
+      - 'scripts/restore_trees_v38.py'
+      - '.github/workflows/build-classic-reference-v38.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa imagemagick python3-numpy
+          blender --version
+      - name: Build fixed map-only layout
+        run: |
+          rm -rf output_classic_reference_v27 output_classic_reference_v32 output_classic_reference_v38
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v27.py
+      - name: Build current refined mountains
+        run: |
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v27/classic_reference_v27.blend --python-exit-code 1 --python scripts/postprocess_classic_v32.py
+      - name: Restore previous trees
+        run: |
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v32/classic_reference_v32.blend --python-exit-code 1 --python scripts/restore_trees_v38.py
+          convert output_classic_reference_v38/preview_main.png -resize 360x203 -quality 65 output_classic_reference_v38/preview_thumb.jpg
+      - name: Verify outputs
+        run: |
+          for f in classic_reference_v38.blend classic_reference_v38.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png preview_thumb.jpg report.txt; do test -s "output_classic_reference_v38/$f" || exit 1; done
+          cat output_classic_reference_v38/report.txt
+          ls -lh output_classic_reference_v38/
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-reference-v38-restored-trees
+          path: output_classic_reference_v38/
+          if-no-files-found: error
+          compression-level: 6
