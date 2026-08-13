@@ -25,7 +25,6 @@ MLIGHT=mk('Mountain_Reference_Light',(0.86,0.89,0.86))
 MSHADOW=mk('Mountain_Reference_Shadow',(0.57,0.68,0.71))
 MBACK=mk('Mountain_Reference_Back',(0.68,0.76,0.77))
 
-# Preserve the same 993 pine centers; only calibrate size around each fixed center.
 f=bpy.data.objects.get('PineForest')
 if f and len(f.data.vertices)%54==0:
     vs=f.data.vertices
@@ -36,7 +35,6 @@ if f and len(f.data.vertices)%54==0:
             q.co.x=cx+(q.co.x-cx)*k;q.co.y=cy+(q.co.y-cy)*k;q.co.z=z0+(q.co.z-z0)*k
     f.data.update()
 
-# Map only: remove old mountains plus church/tents/graves/path/camp helpers.
 for o in list(S.objects):
     n=o.name.lower()
     if o.name.startswith('Reference_Mountain') or o.name.startswith('Reference_Shoulder') or o.name.startswith('Mountain') or any(k in n for k in ['church','grave','tent','camp','path']):
@@ -44,7 +42,6 @@ for o in list(S.objects):
 
 def mountain(name,cx,cy,rx,ry,h,seed,back=False,lean=0.0):
     rr=random.Random(seed)
-    # Bases are deeply buried so only natural upper slopes are visible behind the forest.
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=1,location=(cx,cy,-45.0))
     o=bpy.context.object;o.name=name;me=o.data
     zmin=min(v.co.z for v in me.vertices);zmax=max(v.co.z for v in me.vertices)
@@ -67,12 +64,10 @@ def mountain(name,cx,cy,rx,ry,h,seed,back=False,lean=0.0):
         p.use_smooth=False
     return o
 
-# Distant broad main masses; spacing and scale create the same open mountain backdrop rather than a wall.
 main=[
  (-220,500,98,82,96,-8),(-145,515,104,86,106,7),(-66,525,100,84,92,4),
  (22,530,112,90,110,-5),(112,518,104,86,100,5),(205,500,100,82,94,-5)]
 for i,(x,y,rx,ry,h,lean) in enumerate(main):mountain('Reference_Mountain_%02d'%i,x,y,rx,ry,h,9100+i,False,lean)
-# Pale far layer only visible between the main silhouettes.
 for i,(x,y,rx,ry,h) in enumerate([(-190,665,125,96,72),(-65,680,132,100,78),(70,680,135,100,77),(195,662,126,94,70)]):
     mountain('Reference_MountainBack_%02d'%i,x,y,rx,ry,h,9500+i,True,0)
 
@@ -89,21 +84,21 @@ c=S.camera
 def render(n,loc,t,lens):
     c.location=loc;c.data.lens=lens;look(c,t);S.render.filepath=os.path.join(OUT,n);bpy.ops.render.render(write_still=True)
 
-# Reference-like 16:9 framing with a visible cyan sky band above the mountains.
-render('preview_main.png',(0,-170,80),(0,112,11),50)
-render('preview_closer.png',(0,-154,74),(0,108,9),52)
-render('preview_left.png',(-64,-154,75),(-8,110,9),52)
-render('preview_right.png',(64,-154,75),(8,110,9),52)
-render('preview_high.png',(0,-132,112),(0,108,3),54)
-c.location=(0,-170,80);c.data.lens=50;look(c,(0,112,11))
+# Raise the look target so the complete rounded summits and a cyan sky band are visible.
+render('preview_main.png',(0,-170,80),(0,115,27),50)
+render('preview_closer.png',(0,-154,74),(0,111,24),52)
+render('preview_left.png',(-64,-154,75),(-8,112,24),52)
+render('preview_right.png',(64,-154,75),(8,112,24),52)
+render('preview_high.png',(0,-132,112),(0,110,13),54)
+c.location=(0,-170,80);c.data.lens=50;look(c,(0,115,27))
 
 blend=os.path.join(OUT,'classic_reference_v37.blend');bpy.ops.wm.save_as_mainfile(filepath=blend)
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,'classic_reference_v37.glb'),export_format='GLB',export_apply=True)
 with open(os.path.join(OUT,'report.txt'),'w',encoding='utf-8') as q:
-    q.write('TABS map V37 distant mountain pass\n')
+    q.write('TABS map V37 final camera pass\n')
     q.write('Map only; man-made props removed\n')
     q.write('Pine count: 993; centers unchanged\n')
-    q.write('Mountains pushed far back and bases buried\n')
-    q.write('No separate snow geometry\n')
+    q.write('Mountains distant with buried bases\n')
+    q.write('Full summits and sky band visible\n')
     q.write('Render: 1280x720 16:9\nGLB export: OK\n')
-print('V37_DISTANT_MOUNTAINS_OK',blend)
+print('V37_FINAL_CAMERA_OK',blend)
