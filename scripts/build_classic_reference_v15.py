@@ -1,18 +1,23 @@
 from pathlib import Path
 
 v14_path = Path(__file__).with_name('build_classic_reference_v14.py')
-wrapper = v14_path.read_text(encoding='utf-8')
+outer = v14_path.read_text(encoding='utf-8')
 
-wrapper = wrapper.replace('output_classic_reference_v14','output_classic_reference_v15')
-wrapper = wrapper.replace('classic_reference_v14.blend','classic_reference_v15.blend')
-wrapper = wrapper.replace('classic_reference_v14.glb','classic_reference_v15.glb')
-wrapper = wrapper.replace('TABS Classic reference valley v14','TABS Classic reference valley v15')
+outer = outer.replace('output_classic_reference_v14','output_classic_reference_v15')
+outer = outer.replace('classic_reference_v14.blend','classic_reference_v15.blend')
+outer = outer.replace('classic_reference_v14.glb','classic_reference_v15.glb')
+outer = outer.replace('TABS Classic reference valley v14','TABS Classic reference valley v15')
 
-marker = "ns={'__file__':str(src_path),'__name__':'__main__'}\nexec(compile(src,str(src_path),'exec'),ns,ns)"
-if marker not in wrapper:
-    raise RuntimeError('v15 execution marker missing')
+outer_marker = "ns={'__file__':str(v13_path),'__name__':'__main__'}\nexec(compile(wrapper,str(v13_path),'exec'),ns,ns)"
+if outer_marker not in outer:
+    raise RuntimeError('v15 outer v14 execution marker missing')
 
-extra = r'''
+patch_code = r'''
+nested_marker = "ns={'__file__':str(src_path),'__name__':'__main__'}\nexec(compile(src,str(src_path),'exec'),ns,ns)"
+if nested_marker not in wrapper:
+    raise RuntimeError('v15 nested v13 execution marker missing')
+
+v15_extra = r"""
 # V15: remove the wall-like mountain masses and correct the over-bright terrain.
 src = src.replace("scene.view_settings.exposure = -0.02", "scene.view_settings.exposure = 0.0")
 src = src.replace("'grass':mat('Grass_Reference',(0.56,0.59,0.22),.98)", "'grass':mat('Grass_Reference',(0.54,0.57,0.18),.98)")
@@ -34,7 +39,6 @@ if needle not in src: raise RuntimeError('v15 tree emission marker missing')
 src = src.replace(needle,addition)
 
 # Replace the huge icosphere mountains with a continuous low-poly mountain ridge.
-# Peaks sit much farther behind the forest and all front faces slope gradually from foothill to summit.
 old_mountains = """mountain_specs=[
     (-142,258,88,78,56),(-80,270,92,82,64),(-12,278,100,88,76),
     (58,275,94,84,67),(126,262,92,80,70)
@@ -61,13 +65,10 @@ for x in ridge_x: verts.append((x,back_y,-8.0))
 n=len(ridge_x)
 faces=[]; fm=[]
 for i in range(n-1):
-    # Front mountain slope: two triangles per bay create broad low-poly facets, never a vertical cliff.
     faces.append((i,i+1,n+i)); fm.append(i%2)
     faces.append((i+1,n+i+1,n+i)); fm.append((i+1)%2)
-    # Back slope closes the ridge.
     faces.append((n+i,n+i+1,2*n+i+1,2*n+i)); fm.append((i+1)%2)
 mesh_obj('Mountain_Ridge',verts,faces,[M['mountain'],M['mountain_shadow']],fm)
-# A second, lower distant ridge creates the pale layered mountain backdrop.
 rx2=[-205,-170,-135,-100,-65,-30,5,40,75,110,145,180,210]
 rh2=[15,23,28,25,31,27,34,30,33,28,30,22,15]
 ry2=[315,320,323,321,327,325,330,328,331,326,324,319,316]
@@ -81,7 +82,6 @@ for i in range(n2-1):
     f2.append((i+1,n2+i+1,n2+i));m2.append(0)
     f2.append((n2+i,n2+i+1,2*n2+i+1,2*n2+i));m2.append(0)
 mesh_obj('Mountain_Back_Ridge',v2,f2,[M['mountain_shadow']],m2)
-# Small snow facets only on the tallest reference-like peaks.
 snow_verts=[];snow_faces=[]
 for idx in (6,7,9,12):
     x=ridge_x[idx];y=ridge_y[idx]-1;h=ridge_h[idx]
@@ -93,11 +93,13 @@ if old_mountains not in src:
     raise RuntimeError('v15 mountain block missing')
 src = src.replace(old_mountains,new_mountains)
 
-# Slightly reduce the long path contrast: in the original it blends gently into the meadow.
 src = src.replace("'path':mat('Path_Pale_Sand',(0.72,0.69,0.49),.98)", "'path':mat('Path_Pale_Sand',(0.61,0.62,0.34),.98)")
+"""
+
+wrapper = wrapper.replace(nested_marker, v15_extra + "\n" + nested_marker)
 '''
 
-wrapper = wrapper.replace(marker, extra + "\n" + marker)
+outer = outer.replace(outer_marker, patch_code + "\n" + outer_marker)
 
 ns={'__file__':str(v14_path),'__name__':'__main__'}
-exec(compile(wrapper,str(v14_path),'exec'),ns,ns)
+exec(compile(outer,str(v14_path),'exec'),ns,ns)
