@@ -1,4 +1,4 @@
-name: Build Pastel Valley 3D
+name: Build TABS Legacy Map 3D
 
 on:
   push:
@@ -7,13 +7,14 @@ on:
       - 'scripts/build_reference_valley_v2.py'
       - 'scripts/build_reference_valley_v8.py'
       - 'scripts/build_reference_valley_v9.py'
+      - 'scripts/build_reference_valley_v10.py'
       - '.github/workflows/build-pastel-valley.yml'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,31 +25,37 @@ jobs:
           sudo apt-get install -y blender xvfb libgl1 libglu1-mesa
           blender --version
 
-      - name: Build and render corrected 3D scene
+      - name: Build TABS Legacy map in Blender
         run: |
-          mkdir -p output_reference_valley_v9
-          xvfb-run -a blender --background --python scripts/build_reference_valley_v9.py
+          rm -rf output_tabs_legacy_v10
+          mkdir -p output_tabs_legacy_v10
+          xvfb-run -a blender --background --python scripts/build_reference_valley_v10.py
 
       - name: Verify outputs
         run: |
-          required=(reference_valley_v9.blend preview_main.png preview_closer.png report.txt)
+          required=(tabs_legacy_reference_v10.blend preview_main.png preview_left.png preview_right.png preview_top.png preview_church.png preview_back.png report.txt)
           failed=0
           for f in "${required[@]}"; do
-            if [ -s "output_reference_valley_v9/$f" ]; then
+            if [ -s "output_tabs_legacy_v10/$f" ]; then
               echo "OK $f"
             else
               echo "MISSING $f"
               failed=1
             fi
           done
-          [ -f output_reference_valley_v9/report.txt ] && cat output_reference_valley_v9/report.txt || true
+          if [ -s output_tabs_legacy_v10/tabs_legacy_reference_v10.glb ]; then
+            echo "OK tabs_legacy_reference_v10.glb"
+          else
+            echo "WARNING: GLB missing; BLEND remains primary deliverable"
+          fi
+          cat output_tabs_legacy_v10/report.txt || true
           exit "$failed"
 
       - name: Upload artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reference-valley-v9-3d
-          path: output_reference_valley_v9/
-          if-no-files-found: warn
+          name: tabs-legacy-map-v10-3d
+          path: output_tabs_legacy_v10/
+          if-no-files-found: error
           compression-level: 6
