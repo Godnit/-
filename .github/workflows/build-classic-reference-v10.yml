@@ -1,4 +1,4 @@
-name: Build Classic Reference V20
+name: Build Classic Reference V21
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
     paths:
       - 'scripts/build_classic_reference_v16.py'
       - 'scripts/build_classic_reference_v20.py'
+      - 'scripts/build_classic_reference_v21.py'
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
@@ -29,46 +30,46 @@ jobs:
 
       - name: Build and render corrected 3D scene
         run: |
-          rm -rf output_classic_reference_v20
-          mkdir -p output_classic_reference_v20
-          xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v20.py
-          convert output_classic_reference_v20/preview_main.png -resize 240x135 -quality 45 output_classic_reference_v20/preview_thumb.jpg
+          rm -rf output_classic_reference_v21
+          mkdir -p output_classic_reference_v21
+          xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v21.py
+          convert output_classic_reference_v21/preview_main.png -resize 240x135 -quality 45 output_classic_reference_v21/preview_thumb.jpg
 
       - name: Verify outputs
         run: |
           required=(
-            classic_reference_v20.blend
+            classic_reference_v21.blend
             preview_main.png preview_closer.png
             preview_left.png preview_right.png preview_high.png preview_thumb.jpg
             report.txt
           )
           failed=0
           for f in "${required[@]}"; do
-            if [ -s "output_classic_reference_v20/$f" ]; then
+            if [ -s "output_classic_reference_v21/$f" ]; then
               echo "OK $f"
             else
               echo "MISSING $f"
               failed=1
             fi
           done
-          if [ -s output_classic_reference_v20/classic_reference_v20.glb ]; then echo "OK optional GLB"; fi
-          cat output_classic_reference_v20/report.txt || true
-          find output_classic_reference_v20 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          if [ -s output_classic_reference_v21/classic_reference_v21.glb ]; then echo "OK optional GLB"; fi
+          cat output_classic_reference_v21/report.txt || true
+          find output_classic_reference_v21 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
           exit "$failed"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: classic-reference-v20-3d
-          path: output_classic_reference_v20/
+          name: classic-reference-v21-3d
+          path: output_classic_reference_v21/
           if-no-files-found: error
           compression-level: 6
 
       - name: Publish outputs
         run: |
-          rm -rf /tmp/v20-publish
-          mkdir -p /tmp/v20-publish
-          cp -a output_classic_reference_v20/. /tmp/v20-publish/
+          rm -rf /tmp/v21-publish
+          mkdir -p /tmp/v21-publish
+          cp -a output_classic_reference_v21/. /tmp/v21-publish/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git ls-remote --exit-code --heads origin render-output >/dev/null 2>&1; then
@@ -79,7 +80,7 @@ jobs:
             git checkout --orphan render-output
             git rm -rf . || true
           fi
-          cp -a /tmp/v20-publish/. .
+          cp -a /tmp/v21-publish/. .
           git add -A
-          git commit -m "Publish TABS classic reference V20 outputs" || true
+          git commit -m "Publish TABS classic reference V21 outputs" || true
           git push --force origin render-output
