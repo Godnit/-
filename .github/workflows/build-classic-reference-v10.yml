@@ -1,13 +1,11 @@
-name: Build Classic Reference V19
+name: Build Classic Reference V20
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'scripts/build_classic_reference_v16.py'
-      - 'scripts/build_classic_reference_v17.py'
-      - 'scripts/build_classic_reference_v18.py'
-      - 'scripts/build_classic_reference_v19.py'
+      - 'scripts/build_classic_reference_v20.py'
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
@@ -23,54 +21,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Blender and export dependencies
+      - name: Install Blender
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy imagemagick
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa imagemagick
           blender --version
 
-      - name: Build and render refined 3D reference scene
+      - name: Build and render corrected 3D scene
         run: |
-          rm -rf output_classic_reference_v19
-          mkdir -p output_classic_reference_v19
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v19.py
-          convert output_classic_reference_v19/preview_main.png -resize 240x135 -quality 38 output_classic_reference_v19/preview_thumb.jpg
+          rm -rf output_classic_reference_v20
+          mkdir -p output_classic_reference_v20
+          xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v20.py
+          convert output_classic_reference_v20/preview_main.png -resize 240x135 -quality 45 output_classic_reference_v20/preview_thumb.jpg
 
       - name: Verify outputs
         run: |
           required=(
-            classic_reference_v19.blend
+            classic_reference_v20.blend
             preview_main.png preview_closer.png
             preview_left.png preview_right.png preview_high.png preview_thumb.jpg
             report.txt
           )
           failed=0
           for f in "${required[@]}"; do
-            if [ -s "output_classic_reference_v19/$f" ]; then
+            if [ -s "output_classic_reference_v20/$f" ]; then
               echo "OK $f"
             else
               echo "MISSING $f"
               failed=1
             fi
           done
-          if [ -s output_classic_reference_v19/classic_reference_v19.glb ]; then echo "OK optional GLB"; fi
-          cat output_classic_reference_v19/report.txt || true
-          find output_classic_reference_v19 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          if [ -s output_classic_reference_v20/classic_reference_v20.glb ]; then echo "OK optional GLB"; fi
+          cat output_classic_reference_v20/report.txt || true
+          find output_classic_reference_v20 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
           exit "$failed"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: classic-reference-v19-3d
-          path: output_classic_reference_v19/
+          name: classic-reference-v20-3d
+          path: output_classic_reference_v20/
           if-no-files-found: error
           compression-level: 6
 
-      - name: Publish verified outputs to render-output branch
+      - name: Publish outputs
         run: |
-          rm -rf /tmp/v19-publish
-          mkdir -p /tmp/v19-publish
-          cp -a output_classic_reference_v19/. /tmp/v19-publish/
+          rm -rf /tmp/v20-publish
+          mkdir -p /tmp/v20-publish
+          cp -a output_classic_reference_v20/. /tmp/v20-publish/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git ls-remote --exit-code --heads origin render-output >/dev/null 2>&1; then
@@ -81,7 +79,7 @@ jobs:
             git checkout --orphan render-output
             git rm -rf . || true
           fi
-          cp -a /tmp/v19-publish/. .
+          cp -a /tmp/v20-publish/. .
           git add -A
-          git commit -m "Publish TABS classic reference V19 outputs" || true
+          git commit -m "Publish TABS classic reference V20 outputs" || true
           git push --force origin render-output
