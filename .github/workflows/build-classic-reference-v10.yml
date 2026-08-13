@@ -22,24 +22,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Blender
+      - name: Install Blender and export dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy imagemagick
           blender --version
 
       - name: Build and render refined 3D reference scene
         run: |
           rm -rf output_classic_reference_v18
           mkdir -p output_classic_reference_v18
-          xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v18.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v18.py
+          convert output_classic_reference_v18/preview_main.png -resize 240x135 -quality 38 output_classic_reference_v18/preview_thumb.jpg
 
       - name: Verify outputs
         run: |
           required=(
-            classic_reference_v18.blend
+            classic_reference_v18.blend classic_reference_v18.glb
             preview_main.png preview_closer.png
-            preview_left.png preview_right.png preview_high.png
+            preview_left.png preview_right.png preview_high.png preview_thumb.jpg
             report.txt
           )
           failed=0
