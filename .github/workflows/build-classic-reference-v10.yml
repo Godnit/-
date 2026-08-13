@@ -1,4 +1,4 @@
-name: Build Classic Reference V35
+name: Camera Test V36
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
       - 'scripts/build_classic_reference_v26.py'
       - 'scripts/build_classic_reference_v27.py'
       - 'scripts/postprocess_classic_v35.py'
+      - 'scripts/camera_test_v36.py'
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
@@ -22,25 +23,21 @@ jobs:
       - name: Install Blender
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa imagemagick python3-numpy
-          blender --version
-      - name: Build fixed map-only tree layout
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy
+      - name: Build V35 reference scene
         run: |
-          rm -rf output_classic_reference_v27 output_classic_reference_v35
+          rm -rf output_classic_reference_v27 output_classic_reference_v35 output_camera_v36
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v27.py
-      - name: Apply V35 reference camera and mountains
-        run: |
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v27/classic_reference_v27.blend --python-exit-code 1 --python scripts/postprocess_classic_v35.py
-          convert output_classic_reference_v35/preview_main.png -resize 360x240 -quality 65 output_classic_reference_v35/preview_thumb.jpg
-      - name: Verify outputs
+      - name: Render four camera candidates
         run: |
-          for f in classic_reference_v35.blend classic_reference_v35.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png preview_thumb.jpg report.txt; do test -s "output_classic_reference_v35/$f" || exit 1; done
-          cat output_classic_reference_v35/report.txt
-          ls -lh output_classic_reference_v35/
-      - name: Upload artifact
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v35/classic_reference_v35.blend --python-exit-code 1 --python scripts/camera_test_v36.py
+          for f in A B C D; do test -s "output_camera_v36/candidate_$f.png" || exit 1; done
+          cat output_camera_v36/report.txt
+      - name: Upload camera test
         uses: actions/upload-artifact@v4
         with:
-          name: classic-reference-v35-map-only
-          path: output_classic_reference_v35/
+          name: camera-test-v36
+          path: output_camera_v36/
           if-no-files-found: error
           compression-level: 6
