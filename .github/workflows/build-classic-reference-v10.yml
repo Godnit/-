@@ -1,13 +1,11 @@
-name: Build Classic Reference V23
+name: Build Classic Reference V24
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'scripts/build_classic_reference_v16.py'
-      - 'scripts/build_classic_reference_v20.py'
-      - 'scripts/build_classic_reference_v22.py'
-      - 'scripts/build_classic_reference_v23.py'
+      - 'scripts/build_classic_reference_v24.py'
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
@@ -23,54 +21,53 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Blender
+      - name: Install Blender and GLB dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa imagemagick
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa imagemagick python3-numpy
           blender --version
 
-      - name: Build and render corrected 3D scene
+      - name: Build map-only corrected 3D scene
         run: |
-          rm -rf output_classic_reference_v23
-          mkdir -p output_classic_reference_v23
-          xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v23.py
-          convert output_classic_reference_v23/preview_main.png -resize 240x135 -quality 45 output_classic_reference_v23/preview_thumb.jpg
+          rm -rf output_classic_reference_v24
+          mkdir -p output_classic_reference_v24
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v24.py
+          convert output_classic_reference_v24/preview_main.png -resize 320x180 -quality 62 output_classic_reference_v24/preview_thumb.jpg
 
       - name: Verify outputs
         run: |
           required=(
-            classic_reference_v23.blend
+            classic_reference_v24.blend classic_reference_v24.glb
             preview_main.png preview_closer.png
             preview_left.png preview_right.png preview_high.png preview_thumb.jpg
             report.txt
           )
           failed=0
           for f in "${required[@]}"; do
-            if [ -s "output_classic_reference_v23/$f" ]; then
+            if [ -s "output_classic_reference_v24/$f" ]; then
               echo "OK $f"
             else
               echo "MISSING $f"
               failed=1
             fi
           done
-          if [ -s output_classic_reference_v23/classic_reference_v23.glb ]; then echo "OK optional GLB"; fi
-          cat output_classic_reference_v23/report.txt || true
-          find output_classic_reference_v23 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          cat output_classic_reference_v24/report.txt || true
+          find output_classic_reference_v24 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
           exit "$failed"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: classic-reference-v23-3d
-          path: output_classic_reference_v23/
+          name: classic-reference-v24-map-only
+          path: output_classic_reference_v24/
           if-no-files-found: error
           compression-level: 6
 
       - name: Publish outputs
         run: |
-          rm -rf /tmp/v23-publish
-          mkdir -p /tmp/v23-publish
-          cp -a output_classic_reference_v23/. /tmp/v23-publish/
+          rm -rf /tmp/v24-publish
+          mkdir -p /tmp/v24-publish
+          cp -a output_classic_reference_v24/. /tmp/v24-publish/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git ls-remote --exit-code --heads origin render-output >/dev/null 2>&1; then
@@ -81,7 +78,7 @@ jobs:
             git checkout --orphan render-output
             git rm -rf . || true
           fi
-          cp -a /tmp/v23-publish/. .
+          cp -a /tmp/v24-publish/. .
           git add -A
-          git commit -m "Publish TABS classic reference V23 outputs" || true
+          git commit -m "Publish TABS classic map-only V24 outputs" || true
           git push --force origin render-output
