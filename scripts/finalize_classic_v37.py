@@ -18,15 +18,14 @@ def mk(n,c):
     p=m.node_tree.nodes.get('Principled BSDF');p.inputs['Base Color'].default_value=(*c,1);p.inputs['Roughness'].default_value=.98
     return m
 
-# TABS-like meadow and pines: pale yellow-green with cool shadows.
 tune('Grass',(0.535,0.605,0.205));tune('GrassHill',(0.49,0.56,0.19))
 tune('Pine1',(0.27,0.40,0.245));tune('Pine2',(0.35,0.49,0.285));tune('Pine3',(0.43,0.57,0.325))
-MMAIN=mk('Mountain_Reference_Main',(0.73,0.79,0.78))
-MLIGHT=mk('Mountain_Reference_Light',(0.87,0.89,0.85))
-MSHADOW=mk('Mountain_Reference_Shadow',(0.58,0.68,0.70))
-MBACK=mk('Mountain_Reference_Back',(0.69,0.76,0.76))
+MMAIN=mk('Mountain_Reference_Main',(0.72,0.78,0.77))
+MLIGHT=mk('Mountain_Reference_Light',(0.86,0.89,0.86))
+MSHADOW=mk('Mountain_Reference_Shadow',(0.57,0.68,0.71))
+MBACK=mk('Mountain_Reference_Back',(0.68,0.76,0.77))
 
-# Preserve the 993 centers exactly. Only scale every pine around its own center.
+# Preserve all 993 pine centers exactly.
 f=bpy.data.objects.get('PineForest')
 if f and len(f.data.vertices)%54==0:
     vs=f.data.vertices
@@ -37,48 +36,47 @@ if f and len(f.data.vertices)%54==0:
             q.co.x=cx+(q.co.x-cx)*k;q.co.y=cy+(q.co.y-cy)*k;q.co.z=z0+(q.co.z-z0)*k
     f.data.update()
 
-# Delete old mountains and all man-made objects.
+# Map only: remove prior mountains and all man-made props.
 for o in list(S.objects):
     n=o.name.lower()
-    if o.name.startswith('Reference_Mountain') or o.name.startswith('Mountain') or any(k in n for k in ['church','grave','tent','camp','path']):
+    if o.name.startswith('Reference_Mountain') or o.name.startswith('Reference_Shoulder') or o.name.startswith('Mountain') or any(k in n for k in ['church','grave','tent','camp','path']):
         bpy.data.objects.remove(o,do_unlink=True)
 
-# Broad rounded low-poly mountain, closer to the soft TABS silhouettes than pointed cones.
-def rounded_mountain(name,cx,cy,rx,ry,h,seed,back=False,lean=0.0):
+def mountain(name,cx,cy,rx,ry,h,seed,back=False,lean=0.0):
     rr=random.Random(seed)
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=1,location=(cx,cy,-11.0))
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=1,location=(cx,cy,-14.0))
     o=bpy.context.object;o.name=name;me=o.data
+    zmin=min(v.co.z for v in me.vertices);zmax=max(v.co.z for v in me.vertices)
     for v in me.vertices:
-        t=(v.co.z+1.0)*0.5
-        radial=1.0-0.30*t
-        jitter=1.0+rr.uniform(-0.065,0.065)*(0.35+0.65*(1.0-t))
-        v.co.x=v.co.x*rx*radial*jitter + lean*t
-        v.co.y=v.co.y*ry*radial*(1.0+rr.uniform(-0.045,0.045))
-        v.co.z=t*h + rr.uniform(-0.35,0.35)*(0.25+0.75*(1.0-t))
+        rawx,rawy,rawz=v.co.x,v.co.y,v.co.z
+        t=(rawz-zmin)/(zmax-zmin)
+        # Taller mountain profile with a rounded summit; high vertices receive more variation.
+        radial=(1.0-0.18*t)
+        side_noise=1.0+rr.uniform(-0.055,0.055)*(0.6+0.4*(1-t))
+        v.co.x=rawx*rx*radial*side_noise + lean*t
+        v.co.y=rawy*ry*radial*(1.0+rr.uniform(-0.04,0.04))
+        peak_bulge=h*0.10*math.exp(-((rawx*1.35)**2+(rawy*1.15)**2)*2.4)
+        v.co.z=(t**1.05)*h + peak_bulge + rr.uniform(-0.035,0.035)*h*(0.25+0.75*t)
     me.update()
     mats=[MBACK,MLIGHT,MSHADOW] if back else [MMAIN,MLIGHT,MSHADOW]
     for m in mats:me.materials.append(m)
-    # Integrated pale summit faces; no separate snow geometry.
+    # Light summit planes are integrated in the mountain surface, never separate snow geometry.
     for p in me.polygons:
         z=sum(me.vertices[i].co.z for i in p.vertices)/len(p.vertices)
-        if not back and z>h*0.70 and p.normal.z>0.18:p.material_index=1
-        elif p.normal.x>0.23 or p.normal.y<-.28:p.material_index=2
+        if not back and z>h*0.68 and p.normal.z>0.08:p.material_index=1
+        elif p.normal.x>0.22 or p.normal.y<-.30:p.material_index=2
         else:p.material_index=0
         p.use_smooth=False
     return o
 
-# Main enclosure: fewer, broader, farther masses matching the reference skyline.
+# Distinct broad peaks with visible valleys, closer to the original TABS screenshot.
 main=[
- (-220,382,112,88,50,-10),(-158,402,100,82,47,7),(-92,414,104,86,55,6),
- (-22,422,116,90,60,-6),(55,419,110,88,56,7),(130,405,112,86,58,-6),(207,380,122,91,54,8)]
-for i,(x,y,rx,ry,h,lean) in enumerate(main):
-    rounded_mountain('Reference_Mountain_%02d'%i,x,y,rx,ry,h,6000+i,False,lean)
-# Low shoulders blend the mountain feet instead of forming a vertical wall.
-shoulders=[(-235,345,125,86,28),(-135,360,120,82,27),(-30,370,128,84,30),(80,366,126,84,29),(185,346,132,88,28)]
-for i,(x,y,rx,ry,h) in enumerate(shoulders):rounded_mountain('Reference_Shoulder_%02d'%i,x,y,rx,ry,h,6500+i,False,0)
-# Pale distant row through gaps.
-for i,(x,y,rx,ry,h) in enumerate([(-205,500,145,100,31),(-80,515,150,102,36),(60,515,155,104,37),(190,497,145,98,32)]):
-    rounded_mountain('Reference_MountainBack_%02d'%i,x,y,rx,ry,h,7000+i,True,0)
+ (-215,405,76,70,76,-8),(-142,420,82,72,86,7),(-66,430,78,70,74,4),
+ (20,432,88,75,88,-5),(108,421,82,72,80,5),(198,404,78,68,74,-5)]
+for i,(x,y,rx,ry,h,lean) in enumerate(main):mountain('Reference_Mountain_%02d'%i,x,y,rx,ry,h,8100+i,False,lean)
+# Distant pale range visible only through gaps.
+for i,(x,y,rx,ry,h) in enumerate([(-190,515,110,88,43),(-70,530,118,92,49),(62,530,120,92,48),(185,513,110,86,42)]):
+    mountain('Reference_MountainBack_%02d'%i,x,y,rx,ry,h,8500+i,True,0)
 
 w=S.world
 if w and w.use_nodes:
@@ -93,22 +91,21 @@ c=S.camera
 def render(n,loc,t,lens):
     c.location=loc;c.data.lens=lens;look(c,t);S.render.filepath=os.path.join(OUT,n);bpy.ops.render.render(write_still=True)
 
-# 16:9 framing matching the supplied screenshot.
-render('preview_main.png',(0,-166,78),(0,106,7),49)
-render('preview_closer.png',(0,-150,71),(0,103,6),51)
-render('preview_left.png',(-66,-150,73),(-8,105,6),51)
-render('preview_right.png',(66,-150,73),(8,105,6),51)
-render('preview_high.png',(0,-128,112),(0,108,2),53)
-c.location=(0,-166,78);c.data.lens=49;look(c,(0,106,7))
+# Lower reference-like aerial framing: large open field, forest ring, mountains occupying the top quarter.
+render('preview_main.png',(0,-170,72),(0,105,5.5),50)
+render('preview_closer.png',(0,-154,67),(0,102,5.0),52)
+render('preview_left.png',(-64,-154,69),(-8,104,5.0),52)
+render('preview_right.png',(64,-154,69),(8,104,5.0),52)
+render('preview_high.png',(0,-132,108),(0,107,2),54)
+c.location=(0,-170,72);c.data.lens=50;look(c,(0,105,5.5))
 
 blend=os.path.join(OUT,'classic_reference_v37.blend');bpy.ops.wm.save_as_mainfile(filepath=blend)
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,'classic_reference_v37.glb'),export_format='GLB',export_apply=True)
 with open(os.path.join(OUT,'report.txt'),'w',encoding='utf-8') as q:
-    q.write('TABS map V37 rounded mountain pass\n')
-    q.write('Map only; church/tents/graves/paths removed\n')
+    q.write('TABS map V37 mountain silhouette fix\n')
+    q.write('Map only; all man-made props removed\n')
     q.write('Pine count: 993; centers unchanged\n')
-    q.write('Trees scaled around fixed centers only\n')
-    q.write('Mountains: broad rounded low-poly masses, no separate snow meshes\n')
-    q.write('Render framing: 1280x720 reference-like 16:9\n')
-    q.write('GLB export: OK\n')
-print('V37_ROUNDED_REFERENCE_OK',blend)
+    q.write('Mountain masses: 6 main + 4 distant, rounded low-poly\n')
+    q.write('No floating snow; highlights integrated into mountain faces\n')
+    q.write('Render: 1280x720 16:9\nGLB export: OK\n')
+print('V37_MOUNTAIN_SILHOUETTE_OK',blend)
