@@ -8,6 +8,9 @@ on:
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,13 +28,14 @@ jobs:
 
       - name: Build and render refined 3D reference scene
         run: |
+          rm -rf output_classic_reference_v16
           mkdir -p output_classic_reference_v16
-          xvfb-run -a blender --background --python scripts/build_classic_reference_v16.py
+          xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v16.py
 
       - name: Verify outputs
         run: |
           required=(
-            classic_reference_v16.blend
+            classic_reference_v16.blend classic_reference_v16.glb
             preview_main.png preview_closer.png
             preview_left.png preview_right.png preview_high.png
             report.txt
@@ -50,10 +54,29 @@ jobs:
           exit "$failed"
 
       - name: Upload artifact
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: classic-reference-v16-3d
           path: output_classic_reference_v16/
-          if-no-files-found: warn
+          if-no-files-found: error
           compression-level: 6
+
+      - name: Publish verified outputs to render-output branch
+        run: |
+          rm -rf /tmp/v16-publish
+          mkdir -p /tmp/v16-publish
+          cp -a output_classic_reference_v16/. /tmp/v16-publish/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin render-output >/dev/null 2>&1; then
+            git fetch origin render-output
+            git checkout -B render-output origin/render-output
+            git rm -rf .
+          else
+            git checkout --orphan render-output
+            git rm -rf . || true
+          fi
+          cp -a /tmp/v16-publish/. .
+          git add -A
+          git commit -m "Publish TABS classic reference V16 outputs" || true
+          git push --force origin render-output
