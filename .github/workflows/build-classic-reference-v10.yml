@@ -1,4 +1,4 @@
-name: Build Classic Reference V30
+name: Build Classic Reference V31
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - 'scripts/build_classic_reference_v24.py'
       - 'scripts/build_classic_reference_v26.py'
       - 'scripts/build_classic_reference_v27.py'
-      - 'scripts/postprocess_classic_v30.py'
+      - 'scripts/postprocess_classic_v31.py'
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
@@ -26,28 +26,28 @@ jobs:
           sudo apt-get install -y blender xvfb libgl1 libglu1-mesa imagemagick python3-numpy
           blender --version
 
-      - name: Build verified V27 map layout
+      - name: Build verified map and fixed tree layout
         run: |
-          rm -rf output_classic_reference_v27 output_classic_reference_v30
+          rm -rf output_classic_reference_v27 output_classic_reference_v31
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v27.py
 
-      - name: Replace mountains and render V30
+      - name: Replace mountains and render V31
         run: |
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v27/classic_reference_v27.blend --python-exit-code 1 --python scripts/postprocess_classic_v30.py
-          convert output_classic_reference_v30/preview_main.png -resize 320x180 -quality 62 output_classic_reference_v30/preview_thumb.jpg
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v27/classic_reference_v27.blend --python-exit-code 1 --python scripts/postprocess_classic_v31.py
+          convert output_classic_reference_v31/preview_main.png -resize 320x180 -quality 62 output_classic_reference_v31/preview_thumb.jpg
 
       - name: Verify outputs
         run: |
-          for f in classic_reference_v30.blend classic_reference_v30.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png preview_thumb.jpg report.txt; do
-            test -s "output_classic_reference_v30/$f" || exit 1
+          for f in classic_reference_v31.blend classic_reference_v31.glb preview_main.png preview_closer.png preview_left.png preview_right.png preview_high.png preview_thumb.jpg report.txt; do
+            test -s "output_classic_reference_v31/$f" || exit 1
           done
-          cat output_classic_reference_v30/report.txt
-          ls -lh output_classic_reference_v30/
+          cat output_classic_reference_v31/report.txt
+          ls -lh output_classic_reference_v31/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: classic-reference-v30-map-only
-          path: output_classic_reference_v30/
+          name: classic-reference-v31-map-only
+          path: output_classic_reference_v31/
           if-no-files-found: error
           compression-level: 6
