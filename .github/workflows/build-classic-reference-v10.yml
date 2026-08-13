@@ -1,10 +1,11 @@
-name: Build Classic Reference V16
+name: Build Classic Reference V17
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'scripts/build_classic_reference_v16.py'
+      - 'scripts/build_classic_reference_v17.py'
       - '.github/workflows/build-classic-reference-v10.yml'
   workflow_dispatch:
 
@@ -28,44 +29,44 @@ jobs:
 
       - name: Build and render refined 3D reference scene
         run: |
-          rm -rf output_classic_reference_v16
-          mkdir -p output_classic_reference_v16
-          xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v16.py
+          rm -rf output_classic_reference_v17
+          mkdir -p output_classic_reference_v17
+          xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v17.py
 
       - name: Verify outputs
         run: |
           required=(
-            classic_reference_v16.blend classic_reference_v16.glb
+            classic_reference_v17.blend
             preview_main.png preview_closer.png
             preview_left.png preview_right.png preview_high.png
             report.txt
           )
           failed=0
           for f in "${required[@]}"; do
-            if [ -s "output_classic_reference_v16/$f" ]; then
+            if [ -s "output_classic_reference_v17/$f" ]; then
               echo "OK $f"
             else
               echo "MISSING $f"
               failed=1
             fi
           done
-          cat output_classic_reference_v16/report.txt || true
-          find output_classic_reference_v16 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          cat output_classic_reference_v17/report.txt || true
+          find output_classic_reference_v17 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
           exit "$failed"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: classic-reference-v16-3d
-          path: output_classic_reference_v16/
+          name: classic-reference-v17-3d
+          path: output_classic_reference_v17/
           if-no-files-found: error
           compression-level: 6
 
       - name: Publish verified outputs to render-output branch
         run: |
-          rm -rf /tmp/v16-publish
-          mkdir -p /tmp/v16-publish
-          cp -a output_classic_reference_v16/. /tmp/v16-publish/
+          rm -rf /tmp/v17-publish
+          mkdir -p /tmp/v17-publish
+          cp -a output_classic_reference_v17/. /tmp/v17-publish/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git ls-remote --exit-code --heads origin render-output >/dev/null 2>&1; then
@@ -76,7 +77,7 @@ jobs:
             git checkout --orphan render-output
             git rm -rf . || true
           fi
-          cp -a /tmp/v16-publish/. .
+          cp -a /tmp/v17-publish/. .
           git add -A
-          git commit -m "Publish TABS classic reference V16 outputs" || true
+          git commit -m "Publish TABS classic reference V17 outputs" || true
           git push --force origin render-output
