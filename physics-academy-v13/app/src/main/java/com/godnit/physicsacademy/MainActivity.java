@@ -55,7 +55,13 @@ public class MainActivity extends Activity {
                     String line;
                     while ((line = r.readLine()) != null) js.append(line).append('\n');
                     r.close();
-                    view.evaluateJavascript(js.toString(), null);
+                    String code = js.toString()
+                        .replace("function completeCurrentLesson()", "window.completeCurrentLesson=function completeCurrentLesson()")
+                        .replace("function lessonPrev()", "window.lessonPrev=function lessonPrev()")
+                        .replace("function lessonNext()", "window.lessonNext=function lessonNext()")
+                        .replace("function answerLessonCheck(", "window.answerLessonCheck=function answerLessonCheck(")
+                        .replace("function renderLesson()", "window.renderLesson=function renderLesson()");
+                    view.evaluateJavascript(code, null);
                 } catch (Exception ignored) {}
             }
         });
