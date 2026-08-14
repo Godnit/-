@@ -1,0 +1,40 @@
+name: Export Android Build Tools
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/export-android-tools.yml'
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Pack tools
+        shell: bash
+        run: |
+          set -eux
+          mkdir -p android-tools/build-tools/lib android-tools/platform
+          cp "$ANDROID_HOME/build-tools/35.0.0/aapt2" android-tools/build-tools/
+          cp "$ANDROID_HOME/build-tools/35.0.0/aapt" android-tools/build-tools/ || true
+          cp "$ANDROID_HOME/build-tools/35.0.0/zipalign" android-tools/build-tools/
+          cp "$ANDROID_HOME/build-tools/35.0.0/apksigner" android-tools/build-tools/
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" android-tools/build-tools/lib/
+          cp "$ANDROID_HOME/platforms/android-35/android.jar" android-tools/platform/
+          tar -czf android-tools-linux-api35.tar.gz android-tools
+          ls -lh android-tools-linux-api35.tar.gz
+      - name: Upload tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-tools-linux-api35
+          path: android-tools-linux-api35.tar.gz
+          if-no-files-found: error
