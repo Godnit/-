@@ -1,0 +1,43 @@
+name: Build Multiview Cottage 3D
+
+on:
+  push:
+    branches: [ cottage-multiview-v1 ]
+    paths:
+      - 'scripts/cottage_multiview/**'
+      - '.github/workflows/build-cottage-multiview.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy
+      - name: Build cottage
+        run: |
+          rm -rf output_cottage_multiview
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/cottage_multiview/build_model.py
+      - name: Validate geometry
+        run: |
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/cottage_multiview/validate_model.py
+      - name: Verify deliverables
+        run: |
+          for f in cottage_multiview.blend cottage_multiview.glb preview_perspective.png preview_front.png preview_back.png preview_left.png preview_right.png preview_top.png preview_rear_perspective.png model_report.txt validation_report.txt; do
+            test -s "output_cottage_multiview/$f" || { echo "Missing $f"; exit 1; }
+          done
+          cat output_cottage_multiview/model_report.txt
+          cat output_cottage_multiview/validation_report.txt
+          ls -lh output_cottage_multiview
+      - name: Upload cottage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multiview-cottage-v1
+          path: output_cottage_multiview/
+          if-no-files-found: error
+          compression-level: 6
