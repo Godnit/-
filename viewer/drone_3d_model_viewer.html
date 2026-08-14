@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+<title>عارض مجسمات 3D - تحكم درون</title>
+<style>
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#b9d6e5;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;touch-action:none;overscroll-behavior:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  #hud{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 2px 6px #0008;z-index:10}
+  #topbar{position:absolute;top:max(10px,env(safe-area-inset-top));left:10px;right:10px;display:flex;gap:8px;align-items:center;justify-content:space-between;pointer-events:none}
+  .group{display:flex;gap:7px;pointer-events:auto}
+  .btn,.speed{border:1px solid #ffffff55;background:#101820aa;color:white;border-radius:14px;min-height:42px;padding:0 12px;font-size:14px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .btn:active{transform:scale(.97);background:#233448cc}
+  .file{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center}
+  .file input{position:absolute;inset:0;opacity:0;width:100%;height:100%}
+  #status{position:absolute;top:64px;left:50%;transform:translateX(-50%);padding:7px 12px;border-radius:12px;background:#1018208f;font-size:12px;max-width:80vw;text-align:center;opacity:.9}
+  #crosshair{position:absolute;left:50%;top:50%;width:16px;height:16px;transform:translate(-50%,-50%);opacity:.55}
+  #crosshair:before,#crosshair:after{content:"";position:absolute;background:#fff;border-radius:2px}
+  #crosshair:before{left:7px;top:0;width:2px;height:16px}
+  #crosshair:after{left:0;top:7px;width:16px;height:2px}
+  #joyZone{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:max(20px,env(safe-area-inset-bottom));width:145px;height:145px;pointer-events:auto;touch-action:none}
+  #joyBase{position:absolute;left:7px;top:7px;width:131px;height:131px;border-radius:50%;background:#111b2d55;border:2px solid #ffffff66;box-shadow:inset 0 0 30px #0005,0 6px 20px #0004}
+  #joyKnob{position:absolute;left:45px;top:45px;width:55px;height:55px;border-radius:50%;background:#eaf5ffbb;border:2px solid #fff;box-shadow:0 4px 12px #0005;transform:translate(0,0)}
+  #lookHint{position:absolute;right:18px;bottom:115px;width:160px;height:70px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;opacity:.55;border:1px dashed #fff7;border-radius:18px;background:#0a12202f}
+  #vertical{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:max(22px,env(safe-area-inset-bottom));display:flex;gap:12px;pointer-events:auto}
+  .round{width:62px;height:62px;border-radius:50%;border:2px solid #ffffff77;background:#10182088;color:#fff;font-size:25px;font-weight:700;box-shadow:0 5px 18px #0004;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);touch-action:none}
+  .round:active{background:#35506ebb;transform:scale(.96)}
+  #help{position:absolute;right:12px;top:64px;max-width:255px;padding:9px 11px;border-radius:14px;background:#1018208c;font-size:11px;line-height:1.6;opacity:.8}
+  @media (min-width:900px){#joyZone,#vertical,#lookHint{opacity:.75}}
+</style>
+<script type="importmap">{
+  "imports":{
+    "three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud">
+  <div id="topbar">
+    <div class="group">
+      <label class="btn file">📂 فتح GLB/GLTF<input id="fileInput" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" /></label>
+      <button class="btn" id="resetBtn">⟳ إعادة الكاميرا</button>
+    </div>
+    <div class="group">
+      <select class="speed" id="speedSel" aria-label="سرعة الطيران">
+        <option value="2.5">بطيء</option>
+        <option value="5.0" selected>متوسط</option>
+        <option value="9.0">سريع</option>
+        <option value="16.0">سريع جدًا</option>
+      </select>
+    </div>
+  </div>
+  <div id="status">اختر ملف GLB/GLTF لعرضه</div>
+  <div id="crosshair"></div>
+  <div id="help">🕹️ اليسار: أمام/خلف/يمين/يسار<br>👆 اسحب في النصف الأيمن: لف الكاميرا<br>⬆️⬇️: صعود ونزول<br>⌨️ الكمبيوتر: WASD + Space/C + سحب بالماوس</div>
+  <div id="joyZone"><div id="joyBase"></div><div id="joyKnob"></div></div>
+  <div id="lookHint">اسحب هنا لتدوير الكاميرا</div>
+  <div id="vertical"><button class="round" id="downBtn">↓</button><button class="round" id="upBtn">↑</button></div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const app = document.getElementById('app');
+const statusEl = document.getElementById('status');
+const renderer = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xbfdbe9);
+scene.fog = new THREE.Fog(0xbfdbe9, 35, 120);
+const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.03, 500);
+let yaw = Math.PI, pitch = -0.12;
+let startPose = {pos:new THREE.Vector3(0,2.6,8), yaw:Math.PI, pitch:-0.12};
+const hemi = new THREE.HemisphereLight(0xeef8ff, 0x5d513f, 1.35); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff3d6, 2.4); sun.position.set(-8,12,-7); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); scene.add(sun);
+const fill = new THREE.DirectionalLight(0x9bc9ff,.6); fill.position.set(7,5,5); scene.add(fill);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xa8bd83,roughness:1}));
+ground.rotation.x=-Math.PI/2; ground.position.y=-0.02; ground.receiveShadow=true; scene.add(ground);
+
+let modelRoot = null;
+const loader = new GLTFLoader();
+function prepareModel(root){
+  if(modelRoot) scene.remove(modelRoot);
+  modelRoot=root; scene.add(root);
+  root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(o.material){const mats=Array.isArray(o.material)?o.material:[o.material];for(const m of mats){m.side=THREE.DoubleSide;m.needsUpdate=true;}}}});
+  const box=new THREE.Box3().setFromObject(root); const size=box.getSize(new THREE.Vector3()); const center=box.getCenter(new THREE.Vector3());
+  root.position.x-=center.x; root.position.z-=center.z; root.position.y-=box.min.y; root.updateMatrixWorld(true);
+  const d=Math.max(size.x,size.z,size.y*1.2); startPose={pos:new THREE.Vector3(0,Math.max(1.8,size.y*.45),d*1.35+2),yaw:Math.PI,pitch:-0.10};
+  resetCamera(); statusEl.textContent=`تم التحميل — الحجم التقريبي ${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`;
+}
+
+document.getElementById('fileInput').addEventListener('change',async e=>{
+  const f=e.target.files?.[0]; if(!f)return; statusEl.textContent='جارٍ فتح '+f.name+'…';
+  try{const buf=await f.arrayBuffer(); if(f.name.toLowerCase().endsWith('.glb')) loader.parse(buf,'',g=>prepareModel(g.scene),err=>{throw err}); else loader.parse(new TextDecoder().decode(buf),'',g=>prepareModel(g.scene),err=>{statusEl.textContent='ملف GLTF قد يحتاج ملفاته الخارجية. الأفضل GLB.';console.error(err);});}catch(err){statusEl.textContent='تعذر فتح الملف: '+err.message;}
+});
+function applyLook(){const cp=Math.cos(pitch);const dir=new THREE.Vector3(Math.sin(yaw)*cp,Math.sin(pitch),Math.cos(yaw)*cp);camera.lookAt(camera.position.clone().add(dir));}
+function resetCamera(){camera.position.copy(startPose.pos);yaw=startPose.yaw;pitch=startPose.pitch;applyLook();}
+document.getElementById('resetBtn').addEventListener('click',resetCamera);
+
+const joyZone=document.getElementById('joyZone'), joyKnob=document.getElementById('joyKnob'); let joyId=null,joyX=0,joyY=0;
+function joyCenter(){const r=joyZone.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,rad:r.width*.34}}
+function updateJoy(x,y){const c=joyCenter();let dx=x-c.x,dy=y-c.y;const len=Math.hypot(dx,dy);if(len>c.rad){dx*=c.rad/len;dy*=c.rad/len}joyX=dx/c.rad;joyY=dy/c.rad;joyKnob.style.transform=`translate(${dx}px,${dy}px)`;}
+function clearJoy(){joyId=null;joyX=joyY=0;joyKnob.style.transform='translate(0px,0px)';}
+joyZone.addEventListener('pointerdown',e=>{joyId=e.pointerId;joyZone.setPointerCapture(e.pointerId);updateJoy(e.clientX,e.clientY);e.preventDefault();});
+joyZone.addEventListener('pointermove',e=>{if(e.pointerId===joyId){updateJoy(e.clientX,e.clientY);e.preventDefault();}});joyZone.addEventListener('pointerup',e=>{if(e.pointerId===joyId)clearJoy();});joyZone.addEventListener('pointercancel',clearJoy);
+
+let lookId=null,lastX=0,lastY=0;
+renderer.domElement.addEventListener('pointerdown',e=>{if(e.clientX<innerWidth*.43)return;lookId=e.pointerId;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId);e.preventDefault();});
+renderer.domElement.addEventListener('pointermove',e=>{if(e.pointerId!==lookId)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;yaw-=dx*.0042;pitch-=dy*.0038;pitch=THREE.MathUtils.clamp(pitch,-1.47,1.47);applyLook();e.preventDefault();});
+renderer.domElement.addEventListener('pointerup',e=>{if(e.pointerId===lookId)lookId=null;});renderer.domElement.addEventListener('pointercancel',()=>lookId=null);
+let ascend=0;function bindHold(el,val){el.addEventListener('pointerdown',e=>{ascend=val;el.setPointerCapture(e.pointerId);e.preventDefault();});const end=()=>{if(ascend===val)ascend=0;};el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);}bindHold(document.getElementById('upBtn'),1);bindHold(document.getElementById('downBtn'),-1);
+const keys={};addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
+const clock=new THREE.Clock();
+function animate(){const dt=Math.min(clock.getDelta(),.05),speed=parseFloat(document.getElementById('speedSel').value);let sx=joyX,sy=-joyY;if(keys.KeyA)sx-=1;if(keys.KeyD)sx+=1;if(keys.KeyW)sy+=1;if(keys.KeyS)sy-=1;const mag=Math.hypot(sx,sy);if(mag>1){sx/=mag;sy/=mag}const forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)).normalize(),right=new THREE.Vector3(forward.z,0,-forward.x);camera.position.addScaledVector(forward,sy*speed*dt);camera.position.addScaledVector(right,sx*speed*dt);let v=ascend;if(keys.Space)v++;if(keys.KeyC||keys.ControlLeft)v--;camera.position.y+=v*speed*dt;applyLook();renderer.render(scene,camera);requestAnimationFrame(animate);}animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body>
+</html>
