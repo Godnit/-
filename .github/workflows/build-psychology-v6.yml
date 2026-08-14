@@ -1,0 +1,51 @@
+name: Build Psychology Academy v6
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'psychology_android_v6/**'
+      - '.github/workflows/build-psychology-v6.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Ensure Android SDK 35
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Generate Android project
+        run: python3 psychology_android_v6/build_psychology_v6.py
+
+      - name: Build installable APK
+        run: gradle -p psychology_android_v6 assembleDebug --stacktrace
+
+      - name: Rename APK
+        shell: bash
+        run: |
+          cp psychology_android_v6/app/build/outputs/apk/debug/app-debug.apk Psychology_Academy_v6_Installable.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Psychology-Academy-v6-APK
+          path: Psychology_Academy_v6_Installable.apk
+          if-no-files-found: error
