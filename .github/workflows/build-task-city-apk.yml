@@ -60,9 +60,6 @@ jobs:
 
           wget -q --tries=3 --timeout=30 -O /tmp/templates.tpz "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz"
           unzip -q /tmp/templates.tpz -d /tmp/godot_templates
-
-          # Copy the COMPLETE template folder, not only the APK files. Godot also
-          # uses metadata such as version.txt when validating installed templates.
           cp -a /tmp/godot_templates/templates/. "$CACHE_TARGET/"
           cp -a /tmp/godot_templates/templates/. "$DATA_TARGET/"
 
@@ -71,26 +68,46 @@ jobs:
           test -s "$CACHE_TARGET/version.txt"
           test -s "$DATA_TARGET/android_debug.apk"
           test -s "$DATA_TARGET/version.txt"
-
-          echo "HOME=$HOME"
-          echo "Godot cache template directory:"
-          ls -la "$CACHE_TARGET"
-          echo "Godot data template directory:"
-          ls -la "$DATA_TARGET"
-          echo "Template version metadata:"
           cat "$CACHE_TARGET/version.txt"
+
+      - name: Create Android debug keystore
+        run: |
+          set -eux
+          if ! command -v keytool >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y --no-install-recommends openjdk-17-jdk-headless
+          fi
+          mkdir -p /root/.android
+          rm -f /root/.android/debug.keystore
+          keytool -keyalg RSA -genkeypair \
+            -alias androiddebugkey \
+            -keypass android \
+            -keystore /root/.android/debug.keystore \
+            -storepass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -validity 9999 \
+            -deststoretype pkcs12
+          test -s /root/.android/debug.keystore
+          keytool -list -keystore /root/.android/debug.keystore -storepass android -alias androiddebugkey
+          ls -lh /root/.android/debug.keystore
 
       - name: Import project and validate scripts
         working-directory: task_city_game
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /root/.android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
           godot --headless --verbose --editor --quit
 
       - name: Export debug APK
         working-directory: task_city_game
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /root/.android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
-          echo "Checking template paths immediately before export..."
-          ls -la /root/.cache/godot/export_templates/4.3.stable/
-          ls -la /root/.local/share/godot/export_templates/4.3.stable/
+          test -s /root/.android/debug.keystore
           godot --headless --verbose --export-debug "Android" build/TaskCity.apk
           test -s build/TaskCity.apk
           ls -lh build/TaskCity.apk
