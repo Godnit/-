@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
+import android.view.Window;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -16,8 +17,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(savedInstanceState);
 
+        if (getActionBar() != null) getActionBar().hide();
         getWindow().setStatusBarColor(Color.rgb(7, 18, 38));
         getWindow().setNavigationBarColor(Color.rgb(5, 11, 22));
 
@@ -49,12 +52,10 @@ public class MainActivity extends Activity {
             super.onBackPressed();
             return;
         }
-
         webView.evaluateJavascript(
             "(window.androidBack ? window.androidBack() : 'exit')",
             value -> {
                 if (value != null && value.contains("handled")) return;
-
                 long now = System.currentTimeMillis();
                 if (now - lastExitPress < 1800) {
                     finish();

@@ -10,12 +10,25 @@ android {
         applicationId 'com.godnit.physicsacademy'
         minSdk 23
         targetSdk 35
-        versionCode 13
-        versionName '1.13'
+        versionCode 14
+        versionName '1.14'
+    }
+
+    signingConfigs {
+        stable {
+            storeFile file('physics-academy-key.jks')
+            storePassword 'physicsacademy'
+            keyAlias 'physics'
+            keyPassword 'physicsacademy'
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.stable
+        }
         release {
+            signingConfig signingConfigs.stable
             minifyEnabled false
         }
     }
