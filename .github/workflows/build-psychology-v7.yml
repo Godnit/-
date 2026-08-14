@@ -1,0 +1,66 @@
+name: Build Psychology Academy v7
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'psychology_android_v7/**'
+      - '.github/workflows/build-psychology-v7.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Reconstruct offline academy
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p psychology_android_v7/app/src/main/assets
+          cat psychology_android_v7/webparts/*.b64 > /tmp/psychology-index.gz.b64
+          base64 -d /tmp/psychology-index.gz.b64 | gzip -d > psychology_android_v7/app/src/main/assets/index.html
+          test -s psychology_android_v7/app/src/main/assets/index.html
+          grep -q 'أكاديمية علم النفس' psychology_android_v7/app/src/main/assets/index.html
+          grep -q 'الفرضية والدليل' psychology_android_v7/app/src/main/assets/index.html
+          grep -q 'الارتباط والسببية' psychology_android_v7/app/src/main/assets/index.html
+          echo "Offline HTML bytes: $(wc -c < psychology_android_v7/app/src/main/assets/index.html)"
+
+      - name: Build APK
+        run: gradle -p psychology_android_v7 assembleDebug --stacktrace
+
+      - name: Verify APK, package and launcher icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=psychology_android_v7/app/build/outputs/apk/debug/app-debug.apk
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          "$APKSIGNER" verify --verbose "$APK"
+          "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
+          grep "package: name='com.academy.psychologyv7'" /tmp/badging.txt
+          grep "application: label='أكاديمية علم النفس' icon='res/drawable/ic_launcher.xml'" /tmp/badging.txt || grep "application: label='أكاديمية علم النفس'" /tmp/badging.txt
+          grep "launchable-activity: name='com.academy.psychologyv7.MainActivity'" /tmp/badging.txt
+          cp "$APK" Psychology_Academy_v7_Installable.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Psychology-Academy-v7-APK
+          path: Psychology_Academy_v7_Installable.apk
+          if-no-files-found: error
+          retention-days: 7
