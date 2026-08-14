@@ -1,4 +1,4 @@
-name: Build Physics Academy v13 APK
+name: Build Physics Academy v14 APK
 
 on:
   push:
@@ -33,32 +33,33 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Reassemble offline academy asset
+      - name: Restore offline academy asset
         run: |
           mkdir -p physics-academy-v13/app/src/main/assets
-          cat physics-academy-v13/payload/payload.part* > /tmp/physics-academy.b64
-          base64 -d /tmp/physics-academy.b64 > /tmp/physics-academy.html.bz2
-          bzip2 -dc /tmp/physics-academy.html.bz2 > physics-academy-v13/app/src/main/assets/index.html
+          gzip -dc physics-academy-v13/payload/index.html.gz > physics-academy-v13/app/src/main/assets/index.html
           test -s physics-academy-v13/app/src/main/assets/index.html
           grep -q 'أكاديمية الفيزياء' physics-academy-v13/app/src/main/assets/index.html
           grep -q 'window.androidBack' physics-academy-v13/app/src/main/assets/index.html
           wc -c physics-academy-v13/app/src/main/assets/index.html
 
-      - name: Build debug APK
-        run: gradle -p physics-academy-v13 :app:assembleDebug --stacktrace
+      - name: Build signed release APK
+        run: gradle -p physics-academy-v13 :app:assembleRelease --stacktrace
 
-      - name: Prepare APK
+      - name: Verify and prepare APK
         run: |
-          cp physics-academy-v13/app/build/outputs/apk/debug/app-debug.apk Physics-Academy-v13.apk
-          test -s Physics-Academy-v13.apk
-          unzip -t Physics-Academy-v13.apk
-          sha256sum Physics-Academy-v13.apk
-          ls -lh Physics-Academy-v13.apk
+          cp physics-academy-v13/app/build/outputs/apk/release/app-release.apk Physics-Academy-v14.apk
+          test -s Physics-Academy-v14.apk
+          unzip -t Physics-Academy-v14.apk
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs Physics-Academy-v14.apk
+          unzip -l Physics-Academy-v14.apk | grep -E 'assets/index.html|res/drawable.*/ic_launcher|resources.arsc|classes.dex'
+          sha256sum Physics-Academy-v14.apk
+          ls -lh Physics-Academy-v14.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Physics-Academy-v13-APK
-          path: Physics-Academy-v13.apk
+          name: Physics-Academy-v14-APK
+          path: Physics-Academy-v14.apk
           if-no-files-found: error
           compression-level: 0
