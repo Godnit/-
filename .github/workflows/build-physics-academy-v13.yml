@@ -1,0 +1,60 @@
+name: Build Physics Academy v13 APK
+
+on:
+  push:
+    branches: [ physics-academy-apk-v13 ]
+    paths:
+      - 'physics-academy-v13/**'
+      - '.github/workflows/build-physics-academy-v13.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Reassemble offline academy asset
+        run: |
+          mkdir -p physics-academy-v13/app/src/main/assets
+          cat physics-academy-v13/webparts/index.part* > physics-academy-v13/app/src/main/assets/index.html
+          test -s physics-academy-v13/app/src/main/assets/index.html
+          grep -q 'أكاديمية الفيزياء' physics-academy-v13/app/src/main/assets/index.html
+
+      - name: Build debug APK
+        run: gradle -p physics-academy-v13 :app:assembleDebug --stacktrace
+
+      - name: Prepare APK
+        run: |
+          cp physics-academy-v13/app/build/outputs/apk/debug/app-debug.apk Physics-Academy-v13.apk
+          test -s Physics-Academy-v13.apk
+          unzip -t Physics-Academy-v13.apk
+          sha256sum Physics-Academy-v13.apk
+          ls -lh Physics-Academy-v13.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Physics-Academy-v13-APK
+          path: Physics-Academy-v13.apk
+          if-no-files-found: error
+          compression-level: 0
