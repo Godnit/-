@@ -1,0 +1,105 @@
+name: Build Task City APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'task_city_game/**'
+      - '.github/workflows/build-task-city-apk.yml'
+
+jobs:
+  build-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy
+          blender --version
+
+      - name: Build TABS-style V43 map
+        run: |
+          rm -rf output_classic_reference_v27 output_classic_reference_v32 output_classic_reference_v38 output_classic_reference_v39 output_classic_reference_v40 output_classic_reference_v41 output_classic_reference_v42 output_classic_reference_v43
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v27.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v27/classic_reference_v27.blend --python-exit-code 1 --python scripts/postprocess_classic_v32.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v32/classic_reference_v32.blend --python-exit-code 1 --python scripts/restore_trees_v38.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v38/classic_reference_v38.blend --python-exit-code 1 --python scripts/make_island_v39.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v39/classic_reference_v39.blend --python-exit-code 1 --python scripts/finalize_island_v40.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v40/classic_reference_v40.blend --python-exit-code 1 --python scripts/upgrade_mountains_v41.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v41/classic_reference_v41.blend --python-exit-code 1 --python scripts/refine_mountains_trees_v42.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v42/classic_reference_v42.blend --python-exit-code 1 --python scripts/naturalize_mountains_v43.py
+
+      - name: Build cottage
+        run: |
+          rm -rf output
+          mkdir -p output
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/rebuild_reference_v10.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python-exit-code 1 --python scripts/refine_v15.py
+
+      - name: Prepare game assets
+        run: |
+          mkdir -p task-city-assets
+          cp output_classic_reference_v43/classic_reference_v43.glb task-city-assets/classic_reference_v43.glb
+          cp output/model.glb task-city-assets/cottage.glb
+          test -s task-city-assets/classic_reference_v43.glb
+          test -s task-city-assets/cottage.glb
+          ls -lh task-city-assets
+
+      - name: Upload generated GLB assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-city-glb-assets
+          path: task-city-assets/
+          if-no-files-found: error
+          compression-level: 6
+
+  build-android:
+    needs: build-assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download generated GLB assets
+        uses: actions/download-artifact@v4
+        with:
+          name: task-city-glb-assets
+          path: task_city_game/assets
+
+      - name: Verify Godot environment
+        run: |
+          godot --version
+          ls -lh task_city_game/assets
+          mkdir -p task_city_game/build
+
+      - name: Import project and validate scripts
+        working-directory: task_city_game
+        run: |
+          godot --headless --verbose --editor --quit
+
+      - name: Export debug APK
+        working-directory: task_city_game
+        run: |
+          godot --headless --verbose --export-debug "Android" build/TaskCity.apk
+          test -s build/TaskCity.apk
+          ls -lh build/TaskCity.apk
+
+      - name: Upload APK and source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskCity-Android-v1
+          path: |
+            task_city_game/build/TaskCity.apk
+            task_city_game/project.godot
+            task_city_game/export_presets.cfg
+            task_city_game/scripts/
+          if-no-files-found: error
+          compression-level: 6
