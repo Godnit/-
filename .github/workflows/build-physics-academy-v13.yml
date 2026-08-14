@@ -36,9 +36,13 @@ jobs:
       - name: Reassemble offline academy asset
         run: |
           mkdir -p physics-academy-v13/app/src/main/assets
-          cat physics-academy-v13/webparts/index.part* > physics-academy-v13/app/src/main/assets/index.html
+          cat physics-academy-v13/payload/payload.part* > /tmp/physics-academy.b64
+          base64 -d /tmp/physics-academy.b64 > /tmp/physics-academy.html.bz2
+          bzip2 -dc /tmp/physics-academy.html.bz2 > physics-academy-v13/app/src/main/assets/index.html
           test -s physics-academy-v13/app/src/main/assets/index.html
           grep -q 'أكاديمية الفيزياء' physics-academy-v13/app/src/main/assets/index.html
+          grep -q 'window.androidBack' physics-academy-v13/app/src/main/assets/index.html
+          wc -c physics-academy-v13/app/src/main/assets/index.html
 
       - name: Build debug APK
         run: gradle -p physics-academy-v13 :app:assembleDebug --stacktrace
