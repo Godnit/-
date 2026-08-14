@@ -1,0 +1,1 @@
+Physics Academy v15: branded launcher icon + explicit no-title activity theme.
