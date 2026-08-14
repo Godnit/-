@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,25 +19,25 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy
-      - name: Build cottage
+      - name: Build furnished cottage
         run: |
           rm -rf output_cottage_multiview
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/cottage_multiview/build_model_v3.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/cottage_multiview/build_model_furnished.py
       - name: Validate geometry
         run: |
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/cottage_multiview/validate_model.py
       - name: Verify deliverables
         run: |
-          for f in cottage_multiview.blend cottage_multiview.glb preview_perspective.png preview_front.png preview_back.png preview_left.png preview_right.png preview_top.png preview_rear_perspective.png model_report.txt validation_report.txt; do
+          for f in cottage_multiview.blend cottage_multiview.glb preview_perspective.png preview_front.png preview_back.png preview_left.png preview_right.png preview_top.png preview_rear_perspective.png preview_interior_front.png preview_interior_side.png model_report.txt validation_report.txt; do
             test -s "output_cottage_multiview/$f" || { echo "Missing $f"; exit 1; }
           done
           cat output_cottage_multiview/model_report.txt
           cat output_cottage_multiview/validation_report.txt
           ls -lh output_cottage_multiview
-      - name: Upload cottage artifact
+      - name: Upload furnished cottage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: multiview-cottage-v1
+          name: multiview-cottage-furnished-v1
           path: output_cottage_multiview/
           if-no-files-found: error
           compression-level: 6
