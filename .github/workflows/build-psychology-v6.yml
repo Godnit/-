@@ -36,10 +36,39 @@ jobs:
           gradle-version: '8.7'
 
       - name: Generate Android project
-        run: python3 psychology_android_v6/build_psychology_v6.py
+        id: generate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          python3 psychology_android_v6/build_psychology_v6.py > generator.log 2>&1
+          code=$?
+          cat generator.log
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit $code
+
+      - name: Upload generator diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: psychology-v6-generator-log
+          path: generator.log
+          if-no-files-found: error
+
+      - name: Stop if generator failed
+        if: steps.generate.outcome == 'failure'
+        run: exit 1
 
       - name: Build installable APK
         run: gradle -p psychology_android_v6 assembleDebug --stacktrace
+
+      - name: Verify APK signature and manifest
+        shell: bash
+        run: |
+          APK=psychology_android_v6/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" > verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" >> verification.txt
+          cat verification.txt
 
       - name: Rename APK
         shell: bash
@@ -49,5 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Psychology-Academy-v6-APK
-          path: Psychology_Academy_v6_Installable.apk
+          path: |
+            Psychology_Academy_v6_Installable.apk
+            verification.txt
           if-no-files-found: error
