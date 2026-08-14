@@ -46,6 +46,41 @@ jobs:
           godot --version
           ls -lh task_city_game/assets
 
+      - name: Install Godot Android export templates
+        run: |
+          set -eux
+          VERSION_DIR="4.3.stable"
+          TARGET="/root/.cache/godot/export_templates/${VERSION_DIR}"
+          mkdir -p "$TARGET"
+
+          echo "Searching image for Android export templates..."
+          DEBUG_TEMPLATE="$(find / -type f -name android_debug.apk 2>/dev/null | head -n 1 || true)"
+          RELEASE_TEMPLATE="$(find / -type f -name android_release.apk 2>/dev/null | head -n 1 || true)"
+
+          if [ -n "$DEBUG_TEMPLATE" ]; then
+            echo "Found debug template: $DEBUG_TEMPLATE"
+            cp "$DEBUG_TEMPLATE" "$TARGET/android_debug.apk"
+          fi
+          if [ -n "$RELEASE_TEMPLATE" ]; then
+            echo "Found release template: $RELEASE_TEMPLATE"
+            cp "$RELEASE_TEMPLATE" "$TARGET/android_release.apk"
+          fi
+
+          if [ ! -s "$TARGET/android_debug.apk" ]; then
+            echo "Embedded template was not found; downloading official Godot 4.3 templates."
+            apt-get update
+            apt-get install -y --no-install-recommends wget unzip ca-certificates
+            wget -q --tries=3 --timeout=30 -O /tmp/templates.tpz "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz"
+            mkdir -p /tmp/godot_templates
+            unzip -q /tmp/templates.tpz -d /tmp/godot_templates
+            cp /tmp/godot_templates/templates/android_debug.apk "$TARGET/android_debug.apk"
+            cp /tmp/godot_templates/templates/android_release.apk "$TARGET/android_release.apk"
+          fi
+
+          test -s "$TARGET/android_debug.apk"
+          test -s "$TARGET/android_release.apk"
+          ls -lh "$TARGET"
+
       - name: Import project and validate scripts
         working-directory: task_city_game
         run: |
