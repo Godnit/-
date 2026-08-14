@@ -35,8 +35,11 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Generate Android project
-        run: python3 psychology_android_v6/build_psychology_v6.py
+      - name: Generate Android project safely
+        shell: bash
+        run: |
+          cp psychology_android_v6/build_psychology_v6.py /tmp/build_psychology_v6.py
+          python3 /tmp/build_psychology_v6.py
 
       - name: Build installable APK
         run: gradle -p psychology_android_v6 assembleDebug --stacktrace
