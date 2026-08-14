@@ -36,15 +36,28 @@ jobs:
           gradle-version: '8.7'
 
       - name: Generate Android project safely
+        id: generate
+        continue-on-error: true
         shell: bash
         run: |
+          set -o pipefail
           cp psychology_android_v6/build_psychology_v6.py /tmp/build_psychology_v6.py
-          python3 /tmp/build_psychology_v6.py
+          python3 /tmp/build_psychology_v6.py 2>&1 | tee generator.log
+
+      - name: Upload generator log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: psychology-v6-generator-log
+          path: generator.log
+          if-no-files-found: error
 
       - name: Build installable APK
+        if: ${{ steps.generate.outcome == 'success' }}
         run: gradle -p psychology_android_v6 assembleDebug --stacktrace
 
       - name: Verify APK signature and manifest
+        if: ${{ success() && steps.generate.outcome == 'success' }}
         shell: bash
         run: |
           APK=psychology_android_v6/app/build/outputs/apk/debug/app-debug.apk
@@ -53,10 +66,12 @@ jobs:
           grep -E "Verifies|Signer #1 certificate DN|package:|application-label|application-icon" verification.txt || true
 
       - name: Rename APK
+        if: ${{ success() && steps.generate.outcome == 'success' }}
         shell: bash
         run: cp psychology_android_v6/app/build/outputs/apk/debug/app-debug.apk Psychology_Academy_v6_Installable.apk
 
       - name: Upload APK
+        if: ${{ success() && steps.generate.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: Psychology-Academy-v6-APK
