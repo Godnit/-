@@ -9,57 +9,7 @@ on:
       - '.github/workflows/build-task-city-apk.yml'
 
 jobs:
-  build-assets:
-    runs-on: ubuntu-latest
-    timeout-minutes: 70
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Blender
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y blender xvfb libgl1 libglu1-mesa python3-numpy
-          blender --version
-
-      - name: Build TABS-style V43 map
-        run: |
-          rm -rf output_classic_reference_v27 output_classic_reference_v32 output_classic_reference_v38 output_classic_reference_v39 output_classic_reference_v40 output_classic_reference_v41 output_classic_reference_v42 output_classic_reference_v43
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/build_classic_reference_v27.py
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v27/classic_reference_v27.blend --python-exit-code 1 --python scripts/postprocess_classic_v32.py
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v32/classic_reference_v32.blend --python-exit-code 1 --python scripts/restore_trees_v38.py
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v38/classic_reference_v38.blend --python-exit-code 1 --python scripts/make_island_v39.py
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v39/classic_reference_v39.blend --python-exit-code 1 --python scripts/finalize_island_v40.py
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v40/classic_reference_v40.blend --python-exit-code 1 --python scripts/upgrade_mountains_v41.py
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v41/classic_reference_v41.blend --python-exit-code 1 --python scripts/refine_mountains_trees_v42.py
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output_classic_reference_v42/classic_reference_v42.blend --python-exit-code 1 --python scripts/naturalize_mountains_v43.py
-
-      - name: Build cottage
-        run: |
-          rm -rf output
-          mkdir -p output
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/rebuild_reference_v10.py
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background output/model.blend --python-exit-code 1 --python scripts/refine_v15.py
-
-      - name: Prepare game assets
-        run: |
-          mkdir -p task-city-assets
-          cp output_classic_reference_v43/classic_reference_v43.glb task-city-assets/classic_reference_v43.glb
-          cp output/model.glb task-city-assets/cottage.glb
-          test -s task-city-assets/classic_reference_v43.glb
-          test -s task-city-assets/cottage.glb
-          ls -lh task-city-assets
-
-      - name: Upload generated GLB assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: task-city-glb-assets
-          path: task-city-assets/
-          if-no-files-found: error
-          compression-level: 6
-
   build-android:
-    needs: build-assets
     runs-on: ubuntu-latest
     timeout-minutes: 35
     container:
@@ -68,17 +18,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download generated GLB assets
+      - name: Download verified V43 map artifact
         uses: actions/download-artifact@v4
         with:
-          name: task-city-glb-assets
-          path: task_city_game/assets
+          name: classic-reference-v43-natural-mountains
+          path: _map_artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Godnit/-
+          run-id: 31722636867
 
-      - name: Verify Godot environment
+      - name: Download verified cottage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: reference-cottage-3d-v15
+          path: _house_artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Godnit/-
+          run-id: 31811563821
+
+      - name: Prepare game assets
         run: |
+          mkdir -p task_city_game/assets task_city_game/build
+          cp _map_artifact/classic_reference_v43.glb task_city_game/assets/classic_reference_v43.glb
+          cp _house_artifact/model.glb task_city_game/assets/cottage.glb
+          test -s task_city_game/assets/classic_reference_v43.glb
+          test -s task_city_game/assets/cottage.glb
           godot --version
           ls -lh task_city_game/assets
-          mkdir -p task_city_game/build
 
       - name: Import project and validate scripts
         working-directory: task_city_game
