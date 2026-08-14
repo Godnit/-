@@ -22,7 +22,7 @@ jobs:
       - name: Build cottage
         run: |
           rm -rf output_cottage_multiview
-          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/cottage_multiview/build_model_v2.py
+          PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/cottage_multiview/build_model_v3.py
       - name: Validate geometry
         run: |
           PYTHONPATH=/usr/lib/python3/dist-packages xvfb-run -a blender --background --python-exit-code 1 --python scripts/cottage_multiview/validate_model.py
