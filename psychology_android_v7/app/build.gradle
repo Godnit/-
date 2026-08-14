@@ -1,0 +1,18 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.academy.psychologyv7'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.academy.psychologyv7'
+        minSdk 23
+        targetSdk 35
+        versionCode 700
+        versionName '7.0'
+    }
+
+    buildTypes {
+        release { minifyEnabled false }
+    }
+}
