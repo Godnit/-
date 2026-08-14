@@ -12,8 +12,8 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    container:
-      image: barichello/godot-ci:4.3
+    env:
+      GODOT_BIN: /opt/godot/Godot_v4.3-stable_linux.x86_64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,79 +38,99 @@ jobs:
 
       - name: Prepare game assets
         run: |
+          set -euxo pipefail
           mkdir -p task_city_game/assets task_city_game/build
           cp _map_artifact/classic_reference_v43.glb task_city_game/assets/classic_reference_v43.glb
           cp _house_artifact/model.glb task_city_game/assets/cottage.glb
           test -s task_city_game/assets/classic_reference_v43.glb
           test -s task_city_game/assets/cottage.glb
-          godot --version
           ls -lh task_city_game/assets
 
-      - name: Install complete Godot Android export templates
+      - name: Install official Godot 4.3 and Android templates
         run: |
-          set -eux
-          VERSION_DIR="4.3.stable"
-          CACHE_TARGET="/root/.cache/godot/export_templates/${VERSION_DIR}"
-          DATA_TARGET="/root/.local/share/godot/export_templates/${VERSION_DIR}"
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wget unzip ca-certificates openjdk-17-jdk-headless libfontconfig1 libx11-6 libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libasound2t64
 
-          apt-get update
-          apt-get install -y --no-install-recommends wget unzip ca-certificates
-          rm -rf /tmp/godot_templates /tmp/templates.tpz "$CACHE_TARGET" "$DATA_TARGET"
-          mkdir -p /tmp/godot_templates "$CACHE_TARGET" "$DATA_TARGET"
+          sudo rm -rf /opt/godot
+          sudo mkdir -p /opt/godot
+          wget -q --tries=3 --timeout=30 -O /tmp/godot.zip "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d /tmp/godot_bin
+          sudo cp /tmp/godot_bin/Godot_v4.3-stable_linux.x86_64 "$GODOT_BIN"
+          sudo chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --version
 
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.3.stable"
+          rm -rf "$TEMPLATE_DIR" /tmp/godot_templates /tmp/templates.tpz
+          mkdir -p "$TEMPLATE_DIR" /tmp/godot_templates
           wget -q --tries=3 --timeout=30 -O /tmp/templates.tpz "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz"
           unzip -q /tmp/templates.tpz -d /tmp/godot_templates
-          cp -a /tmp/godot_templates/templates/. "$CACHE_TARGET/"
-          cp -a /tmp/godot_templates/templates/. "$DATA_TARGET/"
+          cp -a /tmp/godot_templates/templates/. "$TEMPLATE_DIR/"
 
-          test -s "$CACHE_TARGET/android_debug.apk"
-          test -s "$CACHE_TARGET/android_release.apk"
-          test -s "$CACHE_TARGET/version.txt"
-          test -s "$DATA_TARGET/android_debug.apk"
-          test -s "$DATA_TARGET/version.txt"
-          cat "$CACHE_TARGET/version.txt"
+          test -s "$TEMPLATE_DIR/android_debug.apk"
+          test -s "$TEMPLATE_DIR/android_release.apk"
+          test -s "$TEMPLATE_DIR/version.txt"
+          echo "Verifying official Android template APK archive..."
+          unzip -t "$TEMPLATE_DIR/android_debug.apk"
+          file "$TEMPLATE_DIR/android_debug.apk"
+          ls -lh "$TEMPLATE_DIR/android_debug.apk" "$TEMPLATE_DIR/android_release.apk"
+          cat "$TEMPLATE_DIR/version.txt"
 
-      - name: Create Android debug keystore
+      - name: Configure Android SDK and debug keystore
         run: |
-          set -eux
-          if ! command -v keytool >/dev/null 2>&1; then
-            apt-get update
-            apt-get install -y --no-install-recommends openjdk-17-jdk-headless
+          set -euxo pipefail
+          echo "JAVA_HOME=${JAVA_HOME:-}"
+          java -version
+          keytool -help >/dev/null
+
+          if [ -n "${ANDROID_SDK_ROOT:-}" ]; then
+            echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+            test -d "$ANDROID_SDK_ROOT"
+          elif [ -n "${ANDROID_HOME:-}" ]; then
+            echo "ANDROID_HOME=$ANDROID_HOME"
+            export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          else
+            echo "Android SDK environment was not preset; checking runner locations"
+            if [ -d /usr/local/lib/android/sdk ]; then
+              echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+              echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+            else
+              echo "Android SDK not found" >&2
+              exit 1
+            fi
           fi
-          mkdir -p /root/.android
-          rm -f /root/.android/debug.keystore
+
+          mkdir -p "$HOME/.android"
+          rm -f "$HOME/.android/debug.keystore"
           keytool -keyalg RSA -genkeypair \
             -alias androiddebugkey \
             -keypass android \
-            -keystore /root/.android/debug.keystore \
+            -keystore "$HOME/.android/debug.keystore" \
             -storepass android \
             -dname "CN=Android Debug,O=Android,C=US" \
             -validity 9999 \
             -deststoretype pkcs12
-          test -s /root/.android/debug.keystore
-          keytool -list -keystore /root/.android/debug.keystore -storepass android -alias androiddebugkey
-          ls -lh /root/.android/debug.keystore
+          test -s "$HOME/.android/debug.keystore"
+          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey
+
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
 
       - name: Import project and validate scripts
-        working-directory: task_city_game
-        env:
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /root/.android/debug.keystore
-          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
-          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
-          godot --headless --verbose --editor --quit
+          set -euxo pipefail
+          "$GODOT_BIN" --headless --verbose --editor --path task_city_game --quit
 
       - name: Export debug APK
-        working-directory: task_city_game
-        env:
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /root/.android/debug.keystore
-          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
-          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
-          test -s /root/.android/debug.keystore
-          godot --headless --verbose --export-debug "Android" build/TaskCity.apk
-          test -s build/TaskCity.apk
-          ls -lh build/TaskCity.apk
+          set -euxo pipefail
+          mkdir -p task_city_game/build
+          "$GODOT_BIN" --headless --verbose --path task_city_game --export-debug "Android" build/TaskCity.apk
+          test -s task_city_game/build/TaskCity.apk
+          file task_city_game/build/TaskCity.apk
+          unzip -t task_city_game/build/TaskCity.apk
+          ls -lh task_city_game/build/TaskCity.apk
 
       - name: Upload APK and source snapshot
         uses: actions/upload-artifact@v4
