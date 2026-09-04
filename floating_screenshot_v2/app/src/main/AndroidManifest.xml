@@ -25,6 +25,14 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".QuickCaptureActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/QuickCaptureTheme" />
+
         <service
             android:name=".ScreenshotService"
             android:exported="false"
@@ -32,8 +40,15 @@
             android:stopWithTask="false" />
 
         <service
-            android:name=".ScreenshotTileService"
+            android:name=".QuickShotService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection"
+            android:stopWithTask="false" />
+
+        <service
+            android:name=".QuickScreenshotTileService"
             android:exported="true"
+            android:directBootAware="true"
             android:icon="@drawable/ic_stat_capture"
             android:label="لقطة شاشة"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
