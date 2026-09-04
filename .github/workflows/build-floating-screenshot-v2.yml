@@ -22,10 +22,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Install Gradle 8.9 directly
+        shell: bash
+        run: |
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
+          sudo mkdir -p /opt/gradle
+          sudo unzip -q /tmp/gradle.zip -d /opt/gradle
+          echo '/opt/gradle/gradle-8.9/bin' >> "$GITHUB_PATH"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
