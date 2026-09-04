@@ -40,15 +40,8 @@
             android:stopWithTask="false" />
 
         <service
-            android:name=".QuickShotService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection"
-            android:stopWithTask="false" />
-
-        <service
             android:name=".QuickScreenshotTileService"
             android:exported="true"
-            android:directBootAware="true"
             android:icon="@drawable/ic_stat_capture"
             android:label="لقطة شاشة"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
