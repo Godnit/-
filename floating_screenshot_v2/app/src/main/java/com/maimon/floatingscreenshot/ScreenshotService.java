@@ -1,5 +1,6 @@
 package com.maimon.floatingscreenshot;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -8,6 +9,7 @@ import android.app.Service;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -17,6 +19,7 @@ import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.Image;
 import android.media.ImageReader;
+import android.media.MediaScannerConnection;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
@@ -25,6 +28,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
@@ -37,6 +41,7 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
@@ -81,6 +86,7 @@ public class ScreenshotService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) return START_STICKY;
         String action = intent.getAction();
+
         if (ACTION_STOP.equals(action)) {
             stopEverything();
             return START_NOT_STICKY;
@@ -110,6 +116,11 @@ public class ScreenshotService extends Service {
         if (ACTION_CAPTURE.equals(action)) {
             if (!ready || mediaProjection == null) {
                 Toast.makeText(this, "افتح اللقطة العائمة مرة واحدة واضغط تجهيز الالتقاط السريع", Toast.LENGTH_LONG).show();
+                return START_STICKY;
+            }
+            if (Build.VERSION.SDK_INT <= 28
+                    && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "يلزم إذن التخزين. افتح التطبيق واضغط تجهيز الالتقاط السريع", Toast.LENGTH_LONG).show();
                 return START_STICKY;
             }
             long delay = intent.getLongExtra(EXTRA_DELAY_MS, 250L);
@@ -157,7 +168,7 @@ public class ScreenshotService extends Service {
         if (capturing) return;
         capturing = true;
         setFloatingVisible(false);
-        long safeDelay = Math.max(120L, delayMs);
+        long safeDelay = Math.max(150L, delayMs);
         mainHandler.postDelayed(this::beginCaptureSession, safeDelay);
     }
 
@@ -176,7 +187,7 @@ public class ScreenshotService extends Service {
         final ImageReader reader;
         final VirtualDisplay display;
         try {
-            reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
+            reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3);
             display = mediaProjection.createVirtualDisplay(
                     "floating-screenshot",
                     width,
@@ -192,7 +203,7 @@ public class ScreenshotService extends Service {
         }
 
         CaptureSession session = new CaptureSession(reader, display, width, height);
-        mainHandler.postDelayed(() -> tryAcquire(session), 140L);
+        mainHandler.postDelayed(() -> tryAcquire(session), 180L);
     }
 
     private void tryAcquire(CaptureSession session) {
@@ -205,8 +216,8 @@ public class ScreenshotService extends Service {
         try {
             image = session.reader.acquireLatestImage();
             if (image == null) {
-                if (session.tries++ < 12) {
-                    mainHandler.postDelayed(() -> tryAcquire(session), 85L);
+                if (session.tries++ < 15) {
+                    mainHandler.postDelayed(() -> tryAcquire(session), 90L);
                 } else {
                     session.close();
                     finishCapture(false, "لم تصل صورة من الشاشة، حاول مرة أخرى");
@@ -218,6 +229,7 @@ public class ScreenshotService extends Service {
             image.close();
             image = null;
             session.close();
+
             if (bitmap == null) {
                 finishCapture(false, "تعذر قراءة صورة الشاشة");
                 return;
@@ -229,7 +241,9 @@ public class ScreenshotService extends Service {
                 mainHandler.post(() -> finishCapture(ok, ok ? null : "تعذر حفظ لقطة الشاشة"));
             }, "screenshot-save").start();
         } catch (Exception e) {
-            if (image != null) image.close();
+            if (image != null) {
+                try { image.close(); } catch (Exception ignored) {}
+            }
             session.close();
             finishCapture(false, "حدث خطأ أثناء التقاط الشاشة");
         }
@@ -248,13 +262,10 @@ public class ScreenshotService extends Service {
 
             Bitmap full = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888);
             full.copyPixelsFromBuffer(buffer);
-            Bitmap cropped;
-            if (paddedWidth == width) {
-                cropped = full;
-            } else {
-                cropped = Bitmap.createBitmap(full, 0, 0, width, height);
-                full.recycle();
-            }
+            if (paddedWidth == width) return full;
+
+            Bitmap cropped = Bitmap.createBitmap(full, 0, 0, width, height);
+            full.recycle();
             return cropped;
         } catch (Exception e) {
             return null;
@@ -263,37 +274,107 @@ public class ScreenshotService extends Service {
 
     private boolean saveBitmap(Bitmap bitmap) {
         String name = "Screenshot_" + new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(new Date()) + ".png";
+        if (Build.VERSION.SDK_INT >= 29) {
+            return saveModern(bitmap, name);
+        }
+        return saveLegacy(bitmap, name);
+    }
+
+    private boolean saveModern(Bitmap bitmap, String name) {
+        ContentResolver resolver = getContentResolver();
+        Uri uri = null;
         try {
-            if (Build.VERSION.SDK_INT >= 29) {
-                ContentResolver resolver = getContentResolver();
-                ContentValues values = new ContentValues();
-                values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
-                values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
-                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Screenshots");
-                values.put(MediaStore.Images.Media.IS_PENDING, 1);
-                Uri uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-                if (uri == null) return false;
-                boolean success = false;
-                try (OutputStream out = resolver.openOutputStream(uri)) {
-                    if (out != null) success = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
-                }
-                if (success) {
-                    ContentValues done = new ContentValues();
-                    done.put(MediaStore.Images.Media.IS_PENDING, 0);
-                    resolver.update(uri, done, null, null);
-                    return true;
-                } else {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Screenshots");
+            values.put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis());
+            values.put(MediaStore.Images.Media.IS_PENDING, 1);
+
+            uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) return false;
+
+            boolean compressed;
+            try (OutputStream out = resolver.openOutputStream(uri, "w")) {
+                if (out == null) {
                     resolver.delete(uri, null, null);
                     return false;
                 }
-            } else {
-                File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Screenshots");
-                if (!dir.exists() && !dir.mkdirs()) return false;
-                File file = new File(dir, name);
-                try (OutputStream out = new FileOutputStream(file)) {
-                    return bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
-                }
+                compressed = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+                out.flush();
             }
+
+            if (!compressed) {
+                resolver.delete(uri, null, null);
+                return false;
+            }
+
+            ContentValues done = new ContentValues();
+            done.put(MediaStore.Images.Media.IS_PENDING, 0);
+            resolver.update(uri, done, null, null);
+
+            if (!verifyUriHasData(resolver, uri)) {
+                resolver.delete(uri, null, null);
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            if (uri != null) {
+                try { resolver.delete(uri, null, null); } catch (Exception ignored) {}
+            }
+            return false;
+        }
+    }
+
+    private boolean verifyUriHasData(ContentResolver resolver, Uri uri) {
+        try (ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "r")) {
+            if (pfd != null) {
+                long size = pfd.getStatSize();
+                if (size > 1024) return true;
+            }
+        } catch (Exception ignored) {}
+
+        try (InputStream in = resolver.openInputStream(uri)) {
+            if (in == null) return false;
+            byte[] probe = new byte[2048];
+            int n = in.read(probe);
+            return n > 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean saveLegacy(Bitmap bitmap, String name) {
+        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+        try {
+            File root = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
+            File dir = new File(root, "Screenshots");
+            if (!dir.exists() && !dir.mkdirs()) return false;
+
+            File file = new File(dir, name);
+            boolean compressed;
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                compressed = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+                out.flush();
+                try { out.getFD().sync(); } catch (Exception ignored) {}
+            }
+
+            if (!compressed || !file.exists() || file.length() <= 1024) {
+                try { file.delete(); } catch (Exception ignored) {}
+                return false;
+            }
+
+            MediaScannerConnection.scanFile(
+                    this,
+                    new String[]{file.getAbsolutePath()},
+                    new String[]{"image/png"},
+                    null);
+            try {
+                sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(file)));
+            } catch (Exception ignored) {}
+            return true;
         } catch (Exception e) {
             return false;
         }
@@ -303,7 +384,7 @@ public class ScreenshotService extends Service {
         capturing = false;
         mainHandler.postDelayed(() -> setFloatingVisible(true), 170L);
         if (success) {
-            Toast.makeText(this, "تم حفظ لقطة الشاشة", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "تم حفظ لقطة الشاشة في المعرض / Screenshots", Toast.LENGTH_SHORT).show();
         } else if (error != null) {
             Toast.makeText(this, error, Toast.LENGTH_LONG).show();
         }
@@ -316,6 +397,7 @@ public class ScreenshotService extends Service {
         button.setImageResource(R.drawable.ic_stat_capture);
         button.setPadding(dp(13), dp(13), dp(13), dp(13));
         button.setColorFilter(Color.WHITE);
+
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
         bg.setColor(Color.rgb(37, 99, 235));
@@ -376,9 +458,7 @@ public class ScreenshotService extends Service {
     }
 
     private void setFloatingVisible(boolean visible) {
-        if (floatingButton != null) {
-            floatingButton.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
-        }
+        if (floatingButton != null) floatingButton.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
     }
 
     private void removeFloatingButton() {
@@ -423,11 +503,15 @@ public class ScreenshotService extends Service {
     private Notification buildNotification() {
         Intent open = new Intent(this, MainActivity.class);
         PendingIntent pending = PendingIntent.getActivity(
-                this, 0, open,
+                this,
+                0,
+                open,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+
         Notification.Builder b = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
+
         return b.setSmallIcon(R.drawable.ic_stat_capture)
                 .setContentTitle("اللقطة العائمة")
                 .setContentText("الالتقاط السريع جاهز")
