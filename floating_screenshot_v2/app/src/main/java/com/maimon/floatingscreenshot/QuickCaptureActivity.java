@@ -6,10 +6,7 @@ import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Bundle;
 
-/**
- * Invisible helper used only when the Quick Settings tile needs the system
- * MediaProjection consent. It never shows the app UI.
- */
+/** Invisible helper used only for Android's MediaProjection consent dialog. */
 public class QuickCaptureActivity extends Activity {
     private static final int REQ_CAPTURE = 5201;
     private MediaProjectionManager projectionManager;
@@ -19,8 +16,8 @@ public class QuickCaptureActivity extends Activity {
         super.onCreate(savedInstanceState);
         overridePendingTransition(0, 0);
 
-        if (ScreenshotService.isReady()) {
-            finishAndCapture(850L);
+        if (QuickShotService.isReady()) {
+            finishAndCapture(750L);
             return;
         }
 
@@ -28,8 +25,7 @@ public class QuickCaptureActivity extends Activity {
         try {
             startActivityForResult(projectionManager.createScreenCaptureIntent(), REQ_CAPTURE);
         } catch (Throwable e) {
-            finish();
-            overridePendingTransition(0, 0);
+            finishSilently();
         }
     }
 
@@ -39,45 +35,41 @@ public class QuickCaptureActivity extends Activity {
         if (requestCode != REQ_CAPTURE) return;
 
         if (resultCode == RESULT_OK && data != null) {
-            Intent service = new Intent(this, ScreenshotService.class)
-                    .setAction(ScreenshotService.ACTION_START)
-                    .putExtra(ScreenshotService.EXTRA_RESULT_CODE, resultCode)
-                    .putExtra(ScreenshotService.EXTRA_RESULT_DATA, data)
-                    .putExtra(ScreenshotService.EXTRA_SHOW_BUBBLE, false);
+            Intent service = new Intent(this, QuickShotService.class)
+                    .setAction(QuickShotService.ACTION_START)
+                    .putExtra(QuickShotService.EXTRA_RESULT_CODE, resultCode)
+                    .putExtra(QuickShotService.EXTRA_RESULT_DATA, data);
             try {
                 if (Build.VERSION.SDK_INT >= 26) startForegroundService(service);
                 else startService(service);
-            } catch (Throwable ignored) {
-            }
+            } catch (Throwable ignored) {}
 
-            // Let the foreground MediaProjection service become ready, then capture
-            // the screen that was behind the Quick Settings shade.
-            finish();
-            overridePendingTransition(0, 0);
+            finishSilently();
             getWindow().getDecorView().postDelayed(() -> {
                 try {
-                    Intent capture = new Intent(getApplicationContext(), ScreenshotService.class)
-                            .setAction(ScreenshotService.ACTION_CAPTURE)
-                            .putExtra(ScreenshotService.EXTRA_DELAY_MS, 700L);
+                    Intent capture = new Intent(getApplicationContext(), QuickShotService.class)
+                            .setAction(QuickShotService.ACTION_CAPTURE)
+                            .putExtra(QuickShotService.EXTRA_DELAY_MS, 650L);
                     startService(capture);
-                } catch (Throwable ignored) {
-                }
+                } catch (Throwable ignored) {}
             }, 350L);
         } else {
-            finish();
-            overridePendingTransition(0, 0);
+            finishSilently();
         }
     }
 
     private void finishAndCapture(long delayMs) {
+        finishSilently();
+        try {
+            Intent capture = new Intent(this, QuickShotService.class)
+                    .setAction(QuickShotService.ACTION_CAPTURE)
+                    .putExtra(QuickShotService.EXTRA_DELAY_MS, delayMs);
+            startService(capture);
+        } catch (Throwable ignored) {}
+    }
+
+    private void finishSilently() {
         finish();
         overridePendingTransition(0, 0);
-        try {
-            Intent capture = new Intent(this, ScreenshotService.class)
-                    .setAction(ScreenshotService.ACTION_CAPTURE)
-                    .putExtra(ScreenshotService.EXTRA_DELAY_MS, delayMs);
-            startService(capture);
-        } catch (Throwable ignored) {
-        }
     }
 }
