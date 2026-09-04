@@ -25,13 +25,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".QuickCaptureActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:theme="@style/QuickCaptureTheme" />
-
         <service
             android:name=".ScreenshotService"
             android:exported="false"
