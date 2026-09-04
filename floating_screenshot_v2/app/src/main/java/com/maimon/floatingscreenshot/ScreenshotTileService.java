@@ -1,59 +1,46 @@
 package com.maimon.floatingscreenshot;
 
-import android.app.PendingIntent;
 import android.content.Intent;
-import android.os.Build;
-import android.service.quicksettings.Tile;
 import android.service.quicksettings.TileService;
+import android.widget.Toast;
 
+/**
+ * Quick Settings tile deliberately kept almost stateless.
+ *
+ * Important for older/OEM SystemUI implementations: do not call updateTile()
+ * while the user is editing/dragging tiles. Some devices become unstable or
+ * refuse to keep the tile in the requested page when a custom tile changes
+ * state during the editor session.
+ */
 public class ScreenshotTileService extends TileService {
-    @Override
-    public void onTileAdded() {
-        super.onTileAdded();
-        publishStableState();
-    }
-
-    @Override
-    public void onStartListening() {
-        super.onStartListening();
-        publishStableState();
-    }
 
     @Override
     public void onClick() {
         super.onClick();
 
-        Intent target = ScreenshotService.isReady()
-                ? new Intent(this, QuickCaptureActivity.class)
-                : new Intent(this, MainActivity.class);
-        target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-
-        try {
-            if (Build.VERSION.SDK_INT >= 34) {
-                PendingIntent pendingIntent = PendingIntent.getActivity(
-                        this,
-                        ScreenshotService.isReady() ? 9101 : 9102,
-                        target,
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                startActivityAndCollapse(pendingIntent);
-            } else {
-                startActivityAndCollapse(target);
-            }
-        } catch (Throwable ignored) {
-            // Keep SystemUI stable even on OEM implementations with buggy tile editors.
+        // Never open an Activity from the tile. Capture must happen over the
+        // screen the user is currently viewing.
+        if (!ScreenshotService.isReady()) {
+            Toast.makeText(this, "جهّز الالتقاط مرة واحدة من التطبيق", Toast.LENGTH_SHORT).show();
+            return;
         }
-    }
 
-    private void publishStableState() {
-        Tile tile = getQsTile();
-        if (tile == null) return;
+        // On the user's Android version this closes the notification/quick
+        // settings shade without launching our app. On newer builds it may be
+        // restricted, so keep it guarded and still request the capture.
         try {
-            // Keep the tile deliberately simple. The manifest supplies icon + label.
-            // Some older OEM SystemUI editors become unstable when the tile changes
-            // icon/label dynamically while the user is dragging it between pages.
-            tile.setState(Tile.STATE_INACTIVE);
-            tile.updateTile();
+            sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
         } catch (Throwable ignored) {
+        }
+
+        try {
+            Intent capture = new Intent(this, ScreenshotService.class)
+                    .setAction(ScreenshotService.ACTION_CAPTURE)
+                    // Give SystemUI enough time to fully disappear before the frame is read.
+                    .putExtra(ScreenshotService.EXTRA_DELAY_MS, 650L);
+            startService(capture);
+        } catch (Throwable e) {
+            Toast.makeText(this, "تعذر التقاط الشاشة", Toast.LENGTH_SHORT).show();
         }
     }
 }
