@@ -42,8 +42,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 public class MainActivity extends Activity {
     private static final int REQ_STORAGE = 2001;
@@ -76,7 +74,7 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView note = new TextView(this);
-        note.setText("يحفظ التطبيق باسمه الحقيقي داخل Downloads/AppsBackup");
+        note.setText("يحفظ التطبيقات باسمها الحقيقي وبصيغة APK فقط داخل Downloads/AppsBackup");
         note.setTextSize(14);
         note.setTextColor(Color.rgb(90,90,90));
         note.setGravity(Gravity.RIGHT);
@@ -180,16 +178,16 @@ public class MainActivity extends Activity {
         new Thread(new Runnable() {
             @Override public void run() {
                 try {
-                    List<String> sources = new ArrayList<>();
-                    sources.add(item.info.sourceDir);
-                    if (item.info.splitSourceDirs != null) Collections.addAll(sources, item.info.splitSourceDirs);
-                    boolean split = sources.size() > 1;
-                    String fileName = safeName(item.label) + (split ? ".zip" : ".apk");
-                    if (Build.VERSION.SDK_INT >= 29) saveMediaStore(fileName, sources, split);
-                    else saveLegacy(fileName, sources, split);
-                    final String msg = split
-                            ? "تم الحفظ باسم " + fileName + " (ZIP لأن التطبيق مقسم)"
-                            : "تم الحفظ باسم " + fileName;
+                    String sourceApk = item.info.sourceDir;
+                    String fileName = safeName(item.label) + ".apk";
+                    boolean originallySplit = item.info.splitSourceDirs != null && item.info.splitSourceDirs.length > 0;
+
+                    if (Build.VERSION.SDK_INT >= 29) saveMediaStoreApk(fileName, sourceApk);
+                    else saveLegacyApk(fileName, sourceApk);
+
+                    final String msg = originallySplit
+                            ? "تم الحفظ باسم " + fileName + " بصيغة APK. ملاحظة: هذا التطبيق كان مقسمًا وقد يحتاج ملفاته الإضافية عند إعادة التثبيت."
+                            : "تم الحفظ باسم " + fileName + " بصيغة APK";
                     runOnUiThread(new Runnable() { @Override public void run() { toast(msg); } });
                 } catch (final Exception e) {
                     runOnUiThread(new Runnable() { @Override public void run() {
@@ -200,23 +198,21 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private void saveLegacy(String fileName, List<String> sources, boolean split) throws IOException {
+    private void saveLegacyApk(String fileName, String sourceApk) throws IOException {
         File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AppsBackup");
         if (!dir.exists() && !dir.mkdirs()) throw new IOException("تعذر إنشاء مجلد AppsBackup");
         File outFile = uniqueFile(dir, fileName);
-        if (split) {
-            try (OutputStream out = new BufferedOutputStream(new FileOutputStream(outFile))) { writeZip(out, sources); }
-        } else {
-            try (InputStream in = new BufferedInputStream(new FileInputStream(sources.get(0)));
-                 OutputStream out = new BufferedOutputStream(new FileOutputStream(outFile))) { copy(in, out); }
+        try (InputStream in = new BufferedInputStream(new FileInputStream(sourceApk));
+             OutputStream out = new BufferedOutputStream(new FileOutputStream(outFile))) {
+            copy(in, out);
         }
     }
 
-    private void saveMediaStore(String fileName, List<String> sources, boolean split) throws IOException {
+    private void saveMediaStoreApk(String fileName, String sourceApk) throws IOException {
         ContentResolver resolver = getContentResolver();
         ContentValues values = new ContentValues();
         values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
-        values.put(MediaStore.Downloads.MIME_TYPE, split ? "application/zip" : "application/vnd.android.package-archive");
+        values.put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive");
         values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/AppsBackup");
         values.put(MediaStore.Downloads.IS_PENDING, 1);
         Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
@@ -225,9 +221,9 @@ public class MainActivity extends Activity {
         try {
             OutputStream raw = resolver.openOutputStream(uri);
             if (raw == null) throw new IOException("تعذر فتح ملف الحفظ");
-            try (OutputStream out = new BufferedOutputStream(raw)) {
-                if (split) writeZip(out, sources);
-                else try (InputStream in = new BufferedInputStream(new FileInputStream(sources.get(0)))) { copy(in, out); }
+            try (InputStream in = new BufferedInputStream(new FileInputStream(sourceApk));
+                 OutputStream out = new BufferedOutputStream(raw)) {
+                copy(in, out);
             }
             ok = true;
         } finally {
@@ -236,20 +232,6 @@ public class MainActivity extends Activity {
                 done.put(MediaStore.Downloads.IS_PENDING, 0);
                 resolver.update(uri, done, null, null);
             } else resolver.delete(uri, null, null);
-        }
-    }
-
-    private void writeZip(OutputStream out, List<String> sources) throws IOException {
-        try (ZipOutputStream zip = new ZipOutputStream(out)) {
-            for (int i = 0; i < sources.size(); i++) {
-                File source = new File(sources.get(i));
-                String name = i == 0 ? "base.apk" : source.getName();
-                if (!name.endsWith(".apk")) name = "split_" + i + ".apk";
-                zip.putNextEntry(new ZipEntry(name));
-                try (InputStream in = new BufferedInputStream(new FileInputStream(source))) { copy(in, zip); }
-                zip.closeEntry();
-            }
-            zip.finish();
         }
     }
 
