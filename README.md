@@ -1,12 +1,21 @@
-# Reference House 3D
+# Portal Gates
 
-Procedural Blender project that rebuilds the supplied cottage reference as a real 3D model.
+A mobile-first 3D portal puzzle game built from scratch for older Android phones.
 
-Build is automated with GitHub Actions. The workflow generates:
+## Target
+- Android 8.1+ (API 27+)
+- Godot 4.6 stable
+- Compatibility renderer / OpenGL ES 3
+- ARMv7 + ARM64 APK
 
-- `output/model.blend`
-- `output/model.glb`
-- six preview renders
-- `output/model_report.txt`
+## Game
+- 20 deterministic, solvable chambers.
+- A/B portals with live SubViewport views of the linked side.
+- Player and cube portal transfer.
+- Switches, cubes, lasers, hazards and moving platforms.
+- Progressive difficulty and longer chambers.
+- Loading screen, main menu, level select, saving, pause, replay and next-level flow.
+- Touch controls plus keyboard/mouse controls for testing.
 
-The model is built with Blender Python in headless mode and validated before export.
+## CI
+GitHub Actions first generates a small low-poly portal asset with Blender, then exports the Android APK with Godot. The APK is uploaded as a workflow artifact.
