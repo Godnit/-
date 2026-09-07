@@ -22,6 +22,10 @@ jobs:
           blender --background --python blender/generate_assets.py
           rm -f assets/portal_ring.blend
 
+      - name: Remove unrelated legacy assets from the CI workspace
+        run: |
+          rm -rf references task_city_game
+
       - name: Generate Android debug keystore
         run: |
           keytool -genkeypair -v -keystore "$GITHUB_WORKSPACE/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
