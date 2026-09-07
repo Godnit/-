@@ -18,4 +18,4 @@ A mobile-first 3D portal puzzle game built from scratch for older Android phones
 - Touch controls plus keyboard/mouse controls for testing.
 
 ## CI
-GitHub Actions generates a low-poly Blender asset, cleans inherited legacy files, then exports a signed debug APK with Godot 4.6. The workflow uploads the APK as an artifact.
+GitHub Actions generates a low-poly Blender asset, cleans inherited legacy files, exports with Godot 4.6, moves the generated APK into `build/`, and uploads it as a workflow artifact.
