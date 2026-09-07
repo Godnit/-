@@ -91,7 +91,13 @@ func _select():
     var title=Label.new(); title.text="SELECT CHAMBER"; title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER; title.add_theme_font_size_override("font_size",34); title.position=Vector2(0,35); title.size=Vector2(1280,60); select.add_child(title)
     var grid=GridContainer.new(); grid.columns=5; grid.position=Vector2(280,130); grid.size=Vector2(720,400); grid.add_theme_constant_override("h_separation",18); grid.add_theme_constant_override("v_separation",18); select.add_child(grid)
     for n in range(1,LEVELS+1):
-        var b=_btn("%02d"%n,Vector2.ZERO,Vector2(120,72),20); b.disabled=n>unlocked; if b.disabled:b.text="LOCKED"; else:b.pressed.connect(func(x=n):_start(x)); grid.add_child(b)
+        var b=_btn("%02d"%n,Vector2.ZERO,Vector2(120,72),20)
+        b.disabled=n>unlocked
+        if b.disabled:
+            b.text="LOCKED"
+        else:
+            b.pressed.connect(func(x=n):_start(x))
+        grid.add_child(b)
     var back=_btn("BACK",Vector2(25,25),Vector2(120,50),16); back.pressed.connect(_menu); select.add_child(back)
 
 func _btn(text,pos,size,font):
@@ -184,8 +190,19 @@ func _process(dt):
     if not player or won:return
     level_time+=dt; portal_cd=maxf(0,portal_cd-dt); time_label.text="TIME  %05.1f"%level_time; _move(dt); _portcam(); _movers(dt); _hazards(dt); _switches(); _teleport()
 func _move(dt):
-    var v=Input.get_vector("move_left","move_right","move_forward","move_back"); if move_vec.length()>.05:v=move_vec
-    var wish=cam.global_transform.basis.x*v.x+(-cam.global_transform.basis.z)*v.y; wish.y=0; if wish.length()>1:wish=wish.normalized(); player.velocity.x=move_toward(player.velocity.x,wish.x*SPEED,18*dt); player.velocity.z=move_toward(player.velocity.z,wish.z*SPEED,18*dt); if not player.is_on_floor():player.velocity.y-=GRAVITY*dt; else:player.velocity.y=-.1; player.move_and_slide(); if player.position.y< -3:_reset()
+    var v=Input.get_vector("move_left","move_right","move_forward","move_back")
+    if move_vec.length()>.05:
+        v=move_vec
+    var wish=cam.global_transform.basis.x*v.x+(-cam.global_transform.basis.z)*v.y; wish.y=0
+    if wish.length()>1:
+        wish=wish.normalized()
+    player.velocity.x=move_toward(player.velocity.x,wish.x*SPEED,18*dt); player.velocity.z=move_toward(player.velocity.z,wish.z*SPEED,18*dt)
+    if not player.is_on_floor():
+        player.velocity.y-=GRAVITY*dt
+    else:
+        player.velocity.y=-.1
+    player.move_and_slide()
+    if player.position.y< -3:_reset()
 func _jump():if player and player.is_on_floor():player.velocity.y=JUMP
 func _use():
     var h=_ray(4); if h.is_empty():return
@@ -200,7 +217,9 @@ func _place(second):
     var h=_ray(15); if h.is_empty():_say("NO VALID SURFACE");return
     var p=portal_b if second else portal_a; p.global_position=h.position+h.normal*.05; p.global_basis=_basis(h.normal); p.visible=true; _say("PORTAL B PLACED" if second else "PORTAL A PLACED")
 func _basis(n):
-    var f=-n; var up=Vector3.UP; if abs(f.dot(up))>.94:up=Vector3.FORWARD; var r=up.cross(f).normalized(); up=f.cross(r).normalized(); return Basis(r,up,-f).orthonormalized()
+    var f=-n; var up=Vector3.UP
+    if abs(f.dot(up))>.94:up=Vector3.FORWARD
+    var r=up.cross(f).normalized(); up=f.cross(r).normalized(); return Basis(r,up,-f).orthonormalized()
 func _ray(dist):
     var q=PhysicsRayQueryParameters3D.create(cam.global_position,cam.global_position-cam.global_transform.basis.z*dist); q.exclude=[player]; return get_world_3d().direct_space_state.intersect_ray(q)
 func _portcam():
@@ -219,7 +238,9 @@ func _teleport():
 func _try(body,src,dst):
     var local=src.global_transform.affine_inverse()*body.global_transform
     if local.origin.z>.05 or local.origin.z<-.85 or abs(local.origin.x)>.7 or abs(local.origin.y-.9)>1.15:return false
-    var rel=src.global_transform.affine_inverse()*body.global_transform; var flip=Transform3D(Basis(Vector3.UP,PI),Vector3.ZERO); body.global_transform=dst.global_transform*flip*rel; if body is CharacterBody3D:body.velocity=-dst.global_transform.basis.z; portal_cd=.35; _say("PORTAL TRANSFER"); return true
+    var rel=src.global_transform.affine_inverse()*body.global_transform; var flip=Transform3D(Basis(Vector3.UP,PI),Vector3.ZERO); body.global_transform=dst.global_transform*flip*rel
+    if body is CharacterBody3D:body.velocity=-dst.global_transform.basis.z
+    portal_cd=.35; _say("PORTAL TRANSFER"); return true
 func _movers(dt):
     for n in movers:
         var t=float(n.get_meta("t"))+dt*float(n.get_meta("speed")); n.set_meta("t",t); n.position=n.get_meta("a").lerp(n.get_meta("b"),(sin(t)+1)/2)
