@@ -24,6 +24,6 @@ core.data.materials.append(mat2)
 
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-path = os.path.join(out_dir, 'portal_ring.glb')
-bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True, export_apply=True)
+path = os.path.join(out_dir, 'portal_ring.blend')
+bpy.ops.wm.save_as_mainfile(filepath=path)
 print('Generated', path)
